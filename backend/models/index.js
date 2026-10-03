@@ -1,9 +1,12 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
+
+// Import trực tiếp model User từ file User.js
+const User = require("./User");
 
 // Model: AccessLog
 const AccessLog = sequelize.define(
-  'AccessLog',
+  "AccessLog",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -26,19 +29,19 @@ const AccessLog = sequelize.define(
     },
   },
   {
-    tableName: 'access_logs',
+    tableName: "access_logs",
     timestamps: false,
     indexes: [
       {
-        fields: ['timestamp'],
+        fields: ["timestamp"],
       },
     ],
-  }
+  },
 );
 
 // Model: Setting (Single row global configuration)
 const Setting = sequelize.define(
-  'Setting',
+  "Setting",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -53,24 +56,23 @@ const Setting = sequelize.define(
     current_password: {
       type: DataTypes.STRING(128),
       allowNull: true,
-      defaultValue: '123456',
+      defaultValue: "123456",
     },
-    // BỔ SUNG 2 TRƯỜNG DƯỚI ĐÂY
     auto_mode_enabled: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: false, // Mặc định tắt cảm biến
+      defaultValue: false,
     },
     auto_close_delay: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 10, // Mặc định 10 giây
+      defaultValue: 10,
     },
   },
   {
-    tableName: 'settings',
+    tableName: "settings",
     timestamps: true,
-  }
+  },
 );
 
 // Helper function to initialize default setting row
@@ -80,7 +82,7 @@ async function initSetting() {
     defaults: {
       id: 1,
       system_locked: false,
-      current_password: '123456',
+      current_password: "123456",
       auto_mode_enabled: false,
       auto_close_delay: 10,
     },
@@ -88,8 +90,10 @@ async function initSetting() {
   return setting;
 }
 
+// Xuất tất cả ra ngoài
 module.exports = {
   sequelize,
+  User, // Quan trọng: Đã có mặt User ở đây
   AccessLog,
   Setting,
   initSetting,

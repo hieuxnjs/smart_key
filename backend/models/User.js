@@ -1,8 +1,8 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
 const User = sequelize.define(
-  'User',
+  "User",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -10,7 +10,7 @@ const User = sequelize.define(
       autoIncrement: true,
     },
     username: {
-      type: DataTypes.STRING(50),
+      type: DataTypes.STRING(64),
       allowNull: false,
       unique: true,
     },
@@ -19,16 +19,16 @@ const User = sequelize.define(
       allowNull: false,
     },
     role: {
-      type: DataTypes.STRING(20),
+      type: DataTypes.STRING(32),
       allowNull: true,
-      defaultValue: 'admin',
+      defaultValue: "admin",
     },
   },
   {
-    tableName: 'Users',
+    tableName: "users", // Bắt buộc viết thường để tương thích với Docker/Linux
     freezeTableName: true,
     timestamps: true,
-  }
+  },
 );
 
 module.exports = User;
