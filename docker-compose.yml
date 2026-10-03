@@ -1,34 +1,15 @@
 version: '3.8'
 
 services:
-  # 1. Dựng Database MySQL tự động
-  mysql_db:
-    image: mysql:8.0
-    container_name: smartlock_mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: smart_lock
-    ports:
-      - "3306:3306"
-    volumes:
-      - db_data:/var/lib/mysql
-
-  # 2. Dựng Backend Node.js
   backend:
     build: ./backend
     container_name: smartlock_backend
     ports:
-      - "3000:3000"
-    environment:
-      - DB_HOST=mysql_db
-      - DB_USER=root
-      - DB_PASSWORD=123456
-      - DB_NAME=smart_lock
-      - MQTT_BROKER_URL=mqtt://broker.hivemq.com:1883
-    depends_on:
-      - mysql_db
+      - "5000:5000"
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
 
-  # 3. Dựng Frontend React
   frontend:
     build: ./frontend
     container_name: smartlock_frontend
@@ -36,6 +17,4 @@ services:
       - "5173:5173"
     depends_on:
       - backend
-
-volumes:
-  db_data: # Giữ lại dữ liệu MySQL kể cả khi tắt Docker
+    restart: unless-stopped

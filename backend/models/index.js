@@ -1,10 +1,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const User = require('./User');
 
-// ====================================================
-// 1. Model: AccessLog -> Exact Table: AccessLogs
-// ====================================================
+// Model: AccessLog
 const AccessLog = sequelize.define(
   'AccessLog',
   {
@@ -14,24 +11,23 @@ const AccessLog = sequelize.define(
       primaryKey: true,
     },
     rfid_uid: {
-      type: DataTypes.STRING(50),
+      type: DataTypes.STRING(64),
       allowNull: true,
       defaultValue: null,
     },
     action: {
-      type: DataTypes.STRING(100),
+      type: DataTypes.STRING(64),
       allowNull: false,
     },
     timestamp: {
       type: DataTypes.DATE,
-      allowNull: true,
+      allowNull: false,
       defaultValue: DataTypes.NOW,
     },
   },
   {
-    tableName: 'AccessLogs',
-    freezeTableName: true,
-    timestamps: true,
+    tableName: 'access_logs',
+    timestamps: false,
     indexes: [
       {
         fields: ['timestamp'],
@@ -40,41 +36,39 @@ const AccessLog = sequelize.define(
   }
 );
 
-// ====================================================
-// 2. Model: Setting -> Exact Table: Settings
-// ====================================================
+// Model: Setting (Single row global configuration)
 const Setting = sequelize.define(
   'Setting',
   {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
-      autoIncrement: true,
+      defaultValue: 1,
     },
     system_locked: {
       type: DataTypes.BOOLEAN,
-      allowNull: true,
+      allowNull: false,
       defaultValue: false,
     },
     current_password: {
-      type: DataTypes.STRING(20),
-      allowNull: false,
-      defaultValue: '1234',
+      type: DataTypes.STRING(128),
+      allowNull: true,
+      defaultValue: '123456',
     },
+    // BỔ SUNG 2 TRƯỜNG DƯỚI ĐÂY
     auto_mode_enabled: {
       type: DataTypes.BOOLEAN,
-      allowNull: true,
-      defaultValue: false, // Default PIR auto mode is disabled
+      allowNull: false,
+      defaultValue: false, // Mặc định tắt cảm biến
     },
     auto_close_delay: {
       type: DataTypes.INTEGER,
-      allowNull: true,
-      defaultValue: 10, // Default 10 seconds auto-close delay
+      allowNull: false,
+      defaultValue: 10, // Mặc định 10 giây
     },
   },
   {
-    tableName: 'Settings',
-    freezeTableName: true,
+    tableName: 'settings',
     timestamps: true,
   }
 );
@@ -86,7 +80,7 @@ async function initSetting() {
     defaults: {
       id: 1,
       system_locked: false,
-      current_password: '1234',
+      current_password: '123456',
       auto_mode_enabled: false,
       auto_close_delay: 10,
     },
@@ -98,6 +92,5 @@ module.exports = {
   sequelize,
   AccessLog,
   Setting,
-  User,
   initSetting,
 };

@@ -21,7 +21,7 @@ app.use(express.json());
 
 // In-memory state tracking
 let isMqttConnected = false;
-let doorOpenState = false; // Theo dõi từ telemetry ESP32 (DOOR_OPENED / DOOR_CLOSED)
+let doorOpenState = false;
 let lastDoorEventTime = new Date();
 
 // ----------------------------------------------------
@@ -120,14 +120,14 @@ mqttClient.on('message', async (topic, payload) => {
 });
 
 // ----------------------------------------------------
-// REST API Routes (100% Phản hồi Tiếng Việt)
+// REST API Routes
 // ----------------------------------------------------
 
-// Router Xác Thực Người Dùng
+// Router Xác Thực Người Dùng (KHÔNG dùng verifyToken ở đây để user có thể Login)
 app.use('/api/auth', authRoutes);
 
-// 1. GET /api/status - Trạng thái cửa, khóa, và cảm biến PIR
-app.get('/api/status', async (req, res) => {
+// 1. GET /api/status - Trạng thái cửa, khóa, và cảm biến PIR (ĐÃ KHÓA BẢO MẬT)
+app.get('/api/status', verifyToken, async (req, res) => {
   try {
     const setting = await Setting.findByPk(1);
     const isLocked = setting ? setting.system_locked : false;
@@ -148,8 +148,8 @@ app.get('/api/status', async (req, res) => {
   }
 });
 
-// 2. GET /api/settings - Lấy cấu hình hệ thống
-app.get('/api/settings', async (req, res) => {
+// 2. GET /api/settings - Lấy cấu hình hệ thống (ĐÃ KHÓA BẢO MẬT)
+app.get('/api/settings', verifyToken, async (req, res) => {
   try {
     const setting = await Setting.findByPk(1);
     res.json({
@@ -167,8 +167,8 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
-// 3. GET /api/logs - Lấy 50 bản ghi lịch sử truy cập gần nhất
-app.get('/api/logs', async (req, res) => {
+// 3. GET /api/logs - Lấy 50 bản ghi lịch sử truy cập gần nhất (ĐÃ KHÓA BẢO MẬT)
+app.get('/api/logs', verifyToken, async (req, res) => {
   try {
     const logs = await AccessLog.findAll({
       order: [['timestamp', 'DESC']],
@@ -202,7 +202,7 @@ app.delete('/api/logs', verifyToken, async (req, res) => {
 });
 
 // ----------------------------------------------------
-// Các API Điều Khiển & Cài Đặt (Yêu cầu JWT Bearer Token)
+// Các API Điều Khiển & Cài Đặt
 // ----------------------------------------------------
 
 // 4. POST /api/control/open - Mở khóa cửa từ xa qua Web Dashboard
@@ -218,7 +218,7 @@ app.post('/api/control/open', verifyToken, async (req, res) => {
 
     doorOpenState = true;
     lastDoorEventTime = new Date();
-    
+
     // Tự động phục hồi trạng thái đóng cửa sau thời gian trễ
     const delay = setting?.auto_close_delay ? setting.auto_close_delay * 1000 : 5000;
     setTimeout(() => {
@@ -400,11 +400,9 @@ app.post('/api/settings/password', verifyToken, async (req, res) => {
 
 // ----------------------------------------------------
 // Khởi Động Server & Đảm Bảo Tài Khoản Quản Trị
-// (ĐÃ XÓA TOÀN BỘ AUTO-SEEDING / MOCK DATA CHO ACCESSLOGS)
 // ----------------------------------------------------
 async function initAdminUser() {
   try {
-    // Chỉ tạo tài khoản quản trị mặc định nếu bảng Users hoàn toàn trống
     const userCount = await User.count();
     if (userCount === 0) {
       console.log('[MySQL] Users table is empty. Initializing default admin user...');
@@ -433,7 +431,6 @@ async function startServer() {
     await initSetting();
     console.log('[MySQL] Default system setting initialized.');
 
-    // Khởi tạo admin user nếu cần, KHÔNG seed bất kỳ log giả nào
     await initAdminUser();
 
     app.listen(PORT, () => {
@@ -441,7 +438,7 @@ async function startServer() {
     });
   } catch (error) {
     console.error('[Fatal Error] Unable to connect to MySQL database:', error.message);
-    console.warn('[Notice] Ensure MySQL is running on port 3306 and database "smart_lock" is created.');
+    console.warn('[Notice] Ensure MySQL is running and properly configured in .env');
     app.listen(PORT, () => {
       console.log(`[Express] Server running on http://localhost:${PORT} (Waiting for MySQL to recover)`);
     });
