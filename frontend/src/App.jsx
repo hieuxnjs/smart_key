@@ -12,8 +12,8 @@ import Login from './pages/Login';
 axios.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      console.warn('[Auth] Received 401 Unauthorized. Clearing session and redirecting to /login...');
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      console.warn('[Auth] Session expired or unauthorized (401/403). Clearing session and redirecting to /login...');
       sessionStorage.removeItem('token');
       sessionStorage.removeItem('user');
       localStorage.removeItem('token');

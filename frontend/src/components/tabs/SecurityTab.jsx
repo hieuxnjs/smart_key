@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { motion } from 'framer-motion';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -7,8 +8,17 @@ import {
   Lock,
   Unlock,
   Volume2,
+  VolumeX,
   AlertTriangle,
   ScrollText,
+  Clock,
+  Loader2,
+  KeyRound,
+  Fingerprint,
+  Smartphone,
+  Sliders,
+  AlertCircle,
+  Activity,
 } from 'lucide-react';
 
 export default function SecurityTab({
@@ -21,192 +31,484 @@ export default function SecurityTab({
   logs = [],
   onToggleBuzzer,
 }) {
-  const [activeButton, setActiveButton] = useState('open');
   const securityLogs = Array.isArray(logs) ? logs.slice(0, 30) : [];
 
-  const handleControl = (button, command) => {
-    setActiveButton(button);
-    onCommand(command);
+  const getLogVisual = (action = '') => {
+    const act = action.toUpperCase();
+    if (act.includes('RFID')) {
+      return {
+        icon: Fingerprint,
+        bg: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+        label: 'Thẻ từ RFID',
+      };
+    }
+    if (act.includes('WEB') || act.includes('DASHBOARD') || act.includes('TỪ XA')) {
+      return {
+        icon: Smartphone,
+        bg: 'bg-blue-50 text-blue-600 border-blue-200',
+        label: 'Điều khiển Web',
+      };
+    }
+    if (act.includes('PHONG TỎA') || act.includes('KHÓA') || act.includes('CHẶN')) {
+      return {
+        icon: ShieldAlert,
+        bg: 'bg-rose-50 text-rose-600 border-rose-200',
+        label: 'Cảnh báo bảo mật',
+      };
+    }
+    if (act.includes('HỦY') || act.includes('MỞ LẠI') || act.includes('KHÔI PHỤC')) {
+      return {
+        icon: ShieldCheck,
+        bg: 'bg-teal-50 text-teal-600 border-teal-200',
+        label: 'Khôi phục hệ thống',
+      };
+    }
+    if (act.includes('CÒI') || act.includes('BUZZER')) {
+      return {
+        icon: Volume2,
+        bg: 'bg-amber-50 text-amber-600 border-amber-200',
+        label: 'Còi báo động',
+      };
+    }
+    return {
+      icon: Activity,
+      bg: 'bg-indigo-50 text-indigo-600 border-indigo-200',
+      label: 'Hoạt động cửa',
+    };
   };
 
   return (
-    <div className="animate-fade-in space-y-4 w-full h-full flex flex-col justify-between select-none text-slate-800">
+    <div className="animate-fade-in space-y-4 sm:space-y-5 w-full h-full flex flex-col justify-between select-none text-slate-800">
       
-      {/* Header */}
-      <div>
-        <span className="text-xs font-bold text-blue-600 tracking-wider uppercase">
-          Quản Lý Khóa Cửa
-        </span>
-        <h2 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-slate-800 tracking-tight">
-          Bảng Điều Khiển
-        </h2>
-        <p className="text-sm text-slate-400 mt-0.5">
-          Theo dõi trạng thái cửa và bảo vệ lối vào
-        </p>
+      {/* 1. Header Trang */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-[11px] font-bold tracking-wider uppercase mb-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+            <span>Quản Lý Khóa Cửa Thông Minh</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">
+            Bảng Điều Khiển An Ninh
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Theo dõi trạng thái chốt cửa, bảo vệ lối vào và quản lý truy cập khẩn cấp
+          </p>
+        </div>
       </div>
 
-      {/* Massive Emergency Lockdown Banner */}
+      {/* 2. Thẻ Khóa Hệ Thống (CHẶN THAO TÁC / MỞ QUYỀN TRUY CẬP) */}
       <div
-        className={`p-5 sm:p-6 rounded-3xl transition-all duration-300 hover:-translate-y-1 hover:shadow-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+        className={`p-5 sm:p-6 rounded-3xl transition-all duration-300 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 relative overflow-hidden ${
           systemLocked
-            ? 'bg-white text-slate-800 shadow-[0_8px_30px_rgba(244,63,94,0.10)]'
-            : 'bg-white text-slate-800'
+            ? 'emergency-alert-pulse bg-gradient-to-r from-rose-50/95 via-white to-rose-50/85'
+            : 'bg-white border border-slate-200/80 hover:shadow-md hover:border-slate-300'
         }`}
       >
-        <div className="flex items-center gap-3.5">
+        {/* Nội dung bên trái */}
+        <div className="flex items-center gap-4">
           <div
-            className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner ${
-              systemLocked ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'
+            className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform ${
+              systemLocked
+                ? 'bg-rose-100 text-rose-600 shadow-md shadow-rose-500/20'
+                : 'bg-gradient-to-tr from-emerald-50 to-teal-50 text-emerald-600 border border-emerald-100 shadow-xs'
             }`}
           >
             {systemLocked ? (
-              <ShieldAlert className="w-8 h-8 text-rose-600 animate-pulse" strokeWidth={1.5} />
+              <ShieldAlert className="w-8 h-8 sm:w-9 sm:h-9 text-rose-600 animate-pulse" strokeWidth={1.8} />
             ) : (
-              <ShieldCheck className="w-8 h-8 text-emerald-600" strokeWidth={1.5} />
+              <ShieldCheck className="w-8 h-8 sm:w-9 sm:h-9 text-emerald-600" strokeWidth={1.8} />
             )}
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base sm:text-lg font-semibold tracking-tight text-slate-800">
-                KHÓA HỆ THỐNG
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h3 className={`text-base sm:text-lg font-black tracking-tight ${systemLocked ? 'text-rose-950' : 'text-slate-900'}`}>
+                {systemLocked ? 'KHÓA HỆ THỐNG ĐANG BẬT' : 'KHÓA HỆ THỐNG'}
               </h3>
               <span
-                className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
-                  systemLocked ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'
+                className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                  systemLocked
+                    ? 'bg-rose-600 text-white shadow-xs shadow-rose-600/30'
+                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 }`}
               >
-                {systemLocked ? 'Đang Bị Khóa' : 'Đang Mở'}
+                {systemLocked ? (
+                  <>
+                    <span className="relative flex h-2 w-2">
+                      <span className="beacon-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-80" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                    </span>
+                    <span>CẢNH BÁO PHONG TỎA</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span>Đang Cho Phép</span>
+                  </>
+                )}
               </span>
             </div>
-            <p className="text-sm mt-1 max-w-xl leading-relaxed text-slate-400">
+            <p className={`text-xs sm:text-sm max-w-xl leading-relaxed ${systemLocked ? 'text-rose-700 font-medium' : 'text-slate-500'}`}>
               {systemLocked
-                ? 'Phím bấm và thẻ từ đang bị chặn tại chỗ.'
-                : 'Vô hiệu hóa phím bấm và thẻ từ tại chỗ.'}
+                ? 'Toàn bộ phím bấm cảm ứng và đầu đọc thẻ từ tại cửa đang bị chặn tại chỗ.'
+                : 'Vô hiệu hóa phím bấm và thẻ từ tại chỗ để bảo vệ cửa trước mọi can thiệp vật lý.'}
             </p>
           </div>
         </div>
-        <button
+
+        {/* Nút Chặn Thao Tác / Mở Quyền Truy Cập */}
+        <motion.button
           type="button"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.96 }}
           onClick={() => onCommand(systemLocked ? 'UNLOCK_SYSTEM' : 'LOCK_SYSTEM')}
           disabled={actionLoading}
-          className={`w-full sm:w-auto sm:min-w-[150px] shrink-0 rounded-xl px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:shadow-md active:scale-95 disabled:opacity-50 ${systemLocked ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'}`}
+          className={`w-full sm:w-auto sm:min-w-[170px] shrink-0 rounded-2xl px-5 py-3 text-xs font-black tracking-wider uppercase text-white shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+            systemLocked
+              ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-500/25 ring-2 ring-emerald-300'
+              : 'bg-gradient-to-r from-rose-500 via-red-500 to-rose-600 hover:from-rose-600 hover:to-red-700 shadow-rose-500/25 ring-2 ring-rose-300'
+          }`}
         >
-          {systemLocked ? 'MỞ QUYỀN TRUY CẬP' : 'CHẶN THAO TÁC'}
-        </button>
+          {actionLoading ? (
+            <Loader2 className="w-4 h-4 animate-spin text-white" />
+          ) : systemLocked ? (
+            <ShieldCheck className="w-4 h-4 text-white" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 text-white" />
+          )}
+          <span>{systemLocked ? 'MỞ QUYỀN TRUY CẬP' : 'CHẶN THAO TÁC'}</span>
+        </motion.button>
       </div>
 
-      {/* Trạng thái khóa cửa */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="p-4 rounded-3xl border border-indigo-100/50 bg-gradient-to-br from-indigo-50/50 to-violet-50/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${doorState === 2 ? 'bg-rose-100 text-rose-600' : doorState === 1 ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-600'}`}>
-            {doorState === 1 ? <DoorOpen className="w-5 h-5" strokeWidth={1.5} /> : <DoorClosed className="w-5 h-5" strokeWidth={1.5} />}
+      {/* 3. Dãy 3 Thẻ Chỉ Số Trạng Thái (KPI Row) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        
+        {/* Chỉ số 1: Trạng Thái Cửa */}
+        <div className="p-4 rounded-3xl bg-white border border-slate-200/80 shadow-xs hover:shadow-md transition-all flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-colors border ${
+                doorState === 2
+                  ? 'bg-rose-50 text-rose-600 border-rose-200 animate-pulse'
+                  : doorState === 1
+                  ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                  : 'bg-slate-100 text-slate-700 border-slate-200'
+              }`}
+            >
+              {doorState === 1 ? (
+                <DoorOpen className="w-5 h-5" strokeWidth={1.8} />
+              ) : (
+                <DoorClosed className="w-5 h-5" strokeWidth={1.8} />
+              )}
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Cảm Biến Khóa
+              </span>
+              <h4 className="text-xs sm:text-sm font-extrabold text-slate-800">Trạng Thái Cửa</h4>
+            </div>
           </div>
-          <div>
-            <h4 className="text-xs font-bold text-slate-800">Trạng Thái Cửa</h4>
-            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${doorState === 2 ? 'bg-rose-50 text-rose-600' : doorState === 1 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'}`}>{doorState === 1 ? 'Đang Mở' : doorState === 2 ? 'Kẹt Cửa' : doorState === 0 ? 'Đang Đóng' : 'Chưa Có Dữ Liệu'}</span>
-          </div>
+          <span
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+              doorState === 2
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : doorState === 1
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-slate-100 text-slate-700 border-slate-200'
+            }`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                doorState === 2 ? 'bg-rose-600 animate-ping' : doorState === 1 ? 'bg-emerald-500' : 'bg-slate-500'
+              }`}
+            />
+            {doorState === 1 ? 'Đang Mở' : doorState === 2 ? 'Kẹt Cửa' : 'Đang Đóng'}
+          </span>
         </div>
 
+        {/* Chỉ số 2: Còi Báo Động (Có công tắc bật/tắt trực quan) */}
         <div
           role="switch"
           aria-checked={buzzerActive}
           aria-label={`Còi báo động ${buzzerActive ? 'đang bật' : 'đang tắt'}`}
-          aria-disabled={!onToggleBuzzer || actionLoading}
-          tabIndex={onToggleBuzzer && !actionLoading ? 0 : -1}
           onClick={() => {
             if (onToggleBuzzer && !actionLoading) onToggleBuzzer(!buzzerActive);
           }}
-          onKeyDown={(event) => {
-            if (onToggleBuzzer && !actionLoading && (event.key === 'Enter' || event.key === ' ')) {
-              event.preventDefault();
-              onToggleBuzzer(!buzzerActive);
-            }
-          }}
-          className={`p-4 rounded-3xl border border-indigo-100/50 bg-gradient-to-br from-indigo-50/50 to-violet-50/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-md active:scale-95 flex items-center gap-3 ${onToggleBuzzer && !actionLoading ? 'cursor-pointer' : 'cursor-wait opacity-70'}`}
+          className={`p-4 rounded-3xl bg-white border border-slate-200/80 shadow-xs hover:shadow-md transition-all flex items-center justify-between cursor-pointer group ${
+            buzzerActive ? 'ring-2 ring-rose-400/50 bg-rose-50/20' : ''
+          }`}
         >
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${buzzerActive ? 'bg-rose-100 text-rose-600' : 'bg-slate-200 text-slate-500'}`}>
-            <Volume2 className="w-5 h-5" strokeWidth={1.5} />
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-colors border ${
+                buzzerActive
+                  ? 'bg-rose-100 text-rose-600 border-rose-300 animate-pulse'
+                  : 'bg-slate-100 text-slate-500 border-slate-200'
+              }`}
+            >
+              {buzzerActive ? (
+                <Volume2 className="w-5 h-5 text-rose-600" strokeWidth={1.8} />
+              ) : (
+                <VolumeX className="w-5 h-5 text-slate-500" strokeWidth={1.8} />
+              )}
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Âm Thanh Cảnh Báo
+              </span>
+              <h4 className="text-xs sm:text-sm font-extrabold text-slate-800">Còi Báo Động</h4>
+            </div>
           </div>
-          <div>
-            <h4 className="text-xs font-bold text-slate-800">Còi Báo Động</h4>
-            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${buzzerActive ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'}`}>{buzzerActive ? 'Đang Kêu' : 'Đang Tắt'}</span>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-[11px] font-extrabold ${
+                buzzerActive ? 'text-rose-600' : 'text-slate-400'
+              }`}
+            >
+              {buzzerActive ? 'Đang Bật' : 'Đang Tắt'}
+            </span>
+            <div
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out ${
+                buzzerActive ? 'bg-rose-500' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`h-5 w-5 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-in-out ${
+                  buzzerActive ? 'translate-x-5' : 'translate-x-0.5'
+                }`}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Chỉ số 3: Quyền Truy Cập (Tự động đổi viền đỏ nhấp nháy khi bị khóa) */}
+        <div
+          className={`p-4 rounded-3xl transition-all flex items-center justify-between ${
+            systemLocked
+              ? 'border-2 border-rose-400 bg-rose-50/50 shadow-sm shadow-rose-500/15 animate-pulse'
+              : 'bg-white border border-slate-200/80 shadow-xs hover:shadow-md'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-colors border ${
+                systemLocked
+                  ? 'bg-rose-100 text-rose-600 border-rose-300'
+                  : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+              }`}
+            >
+              {systemLocked ? (
+                <Lock className="w-5 h-5" strokeWidth={1.8} />
+              ) : (
+                <Unlock className="w-5 h-5" strokeWidth={1.8} />
+              )}
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Quyền Bàn Phím & Thẻ
+              </span>
+              <h4 className="text-xs sm:text-sm font-extrabold text-slate-800">Quyền Truy Cập</h4>
+            </div>
           </div>
           <span
-            aria-hidden="true"
-            className={`relative ml-auto inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${buzzerActive ? 'bg-rose-500' : 'bg-slate-300'}`}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+              systemLocked
+                ? 'bg-rose-100 text-rose-700 border-rose-300'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            }`}
           >
-            <span className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${buzzerActive ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                systemLocked ? 'bg-rose-600 animate-ping' : 'bg-emerald-500'
+              }`}
+            />
+            {systemLocked ? 'Bị Khóa' : 'Cho Phép'}
           </span>
         </div>
 
-        <div className="p-4 rounded-3xl border border-indigo-100/50 bg-gradient-to-br from-indigo-50/50 to-violet-50/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${systemLocked ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
-            {systemLocked ? <Lock className="w-5 h-5" strokeWidth={1.5} /> : <Unlock className="w-5 h-5" strokeWidth={1.5} />}
-          </div>
-          <div>
-            <h4 className="text-xs font-bold text-slate-800">Quyền Truy Cập</h4>
-            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${systemLocked ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>{systemLocked ? 'Bị Khóa' : 'Đang Mở'}</span>
-          </div>
-        </div>
       </div>
 
-      {/* Security Action Bar & Incident Log */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 items-stretch">
+      {/* 4. Khung Điều Khiển Cửa & Lịch Sử Hoạt Động */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 flex-1 items-stretch">
         
-        {/* Điều Khiển Cửa */}
-        <div className="lg:col-span-5 p-5 rounded-3xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl space-y-4">
+        {/* CỘT TRÁI: 4 Nút Điều Khiển Cửa (Làm mới đẹp mắt, đồng nhất màu sắc) */}
+        <div className="lg:col-span-5 p-5 sm:p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4">
           <div>
-            <h4 className="text-sm font-semibold text-slate-800">Điều Khiển Cửa</h4>
-            <p className="text-sm text-slate-400 mt-0.5">Chọn thao tác cần thực hiện</p>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                <Sliders className="w-4 h-4" />
+              </div>
+              <h4 className="text-sm font-extrabold text-slate-900">Bảng Điều Khiển Lối Vào</h4>
+            </div>
+            <p className="text-xs text-slate-400">Chọn thao tác để gửi lệnh trực tiếp tới khóa cửa</p>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <button type="button" disabled={actionLoading || systemLocked} onClick={() => handleControl('open', 'OPEN_DOOR')} className={`flex h-28 flex-col items-center justify-center gap-2 rounded-2xl px-3 py-3 text-center text-sm font-medium transition-colors duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${activeButton === 'open' ? 'bg-violet-500 text-white shadow-md' : 'bg-white text-violet-500 hover:bg-violet-50'}`}><Unlock className="h-8 w-8 shrink-0" strokeWidth={2} /><span>Mở Cửa</span></button>
-            <button type="button" disabled={actionLoading} onClick={() => handleControl('close', 'CLOSE_DOOR')} className={`flex h-28 flex-col items-center justify-center gap-2 rounded-2xl px-3 py-3 text-center text-sm font-medium transition-colors duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${activeButton === 'close' ? 'bg-slate-700 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-50'}`}><Lock className="h-8 w-8 shrink-0" strokeWidth={2} /><span>Đóng Cửa</span></button>
-            <button type="button" disabled={actionLoading || systemLocked} onClick={() => handleControl('lock', 'LOCK_SYSTEM')} className={`flex h-28 flex-col items-center justify-center gap-2 rounded-2xl px-3 py-3 text-center text-sm font-medium transition-colors duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-100 ${activeButton === 'lock' || systemLocked ? 'animate-pulse bg-red-500 text-white shadow-md ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'border border-red-100 bg-white text-red-500 hover:bg-red-50'}`}><AlertTriangle className="h-8 w-8 shrink-0" strokeWidth={2} /><span>Khóa Khẩn Cấp</span></button>
-            <button type="button" disabled={actionLoading || !systemLocked} onClick={() => handleControl('unlock', 'UNLOCK_SYSTEM')} className={`flex h-28 flex-col items-center justify-center gap-2 rounded-2xl px-3 py-3 text-center text-sm font-medium transition-colors duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${activeButton === 'unlock' ? 'bg-emerald-500 text-white shadow-md' : 'border border-emerald-100 bg-white text-emerald-500 hover:bg-emerald-50'}`}><ShieldCheck className="h-8 w-8 shrink-0" strokeWidth={2} /><span>Mở Khóa Hệ Thống</span></button>
+
+          <div className="grid grid-cols-2 gap-3 sm:gap-3.5 flex-1 items-stretch">
+            
+            {/* Nút 1: Mở Cửa */}
+            <motion.button
+              type="button"
+              whileHover={{ y: -2, scale: 1.02 }}
+              whileTap={{ scale: 0.96 }}
+              disabled={actionLoading || systemLocked}
+              onClick={() => onCommand('OPEN_DOOR')}
+              className={`p-4 rounded-2xl border transition-all flex flex-col items-center justify-center text-center gap-2 group cursor-pointer ${
+                systemLocked
+                  ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                  : 'bg-gradient-to-br from-white to-blue-50/50 hover:to-blue-100/60 border-blue-200/80 hover:border-blue-400 text-slate-800 shadow-xs hover:shadow-md shadow-blue-500/5'
+              }`}
+            >
+              <div
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${
+                  systemLocked ? 'bg-slate-200 text-slate-400' : 'bg-blue-100 text-blue-600 shadow-xs'
+                }`}
+              >
+                <Unlock className="w-6 h-6" strokeWidth={2} />
+              </div>
+              <div>
+                <span className="block text-xs sm:text-sm font-black text-slate-800">Mở Cửa</span>
+                <span className="text-[10px] text-slate-400 font-medium">Chốt mở trong 5s</span>
+              </div>
+            </motion.button>
+
+            {/* Nút 2: Đóng Cửa */}
+            <motion.button
+              type="button"
+              whileHover={{ y: -2, scale: 1.02 }}
+              whileTap={{ scale: 0.96 }}
+              disabled={actionLoading}
+              onClick={() => onCommand('CLOSE_DOOR')}
+              className="p-4 rounded-2xl border border-slate-200/90 bg-gradient-to-br from-white to-slate-50/80 hover:to-slate-100/90 hover:border-slate-400 text-slate-800 shadow-xs hover:shadow-md transition-all flex flex-col items-center justify-center text-center gap-2 group cursor-pointer"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center transition-transform group-hover:scale-110 shadow-xs">
+                <Lock className="w-6 h-6" strokeWidth={2} />
+              </div>
+              <div>
+                <span className="block text-xs sm:text-sm font-black text-slate-800">Đóng Cửa</span>
+                <span className="text-[10px] text-slate-400 font-medium">Khóa chốt an toàn</span>
+              </div>
+            </motion.button>
+
+            {/* Nút 3: Khóa Khẩn Cấp (Chặn thao tác) */}
+            <motion.button
+              type="button"
+              whileHover={{ y: -2, scale: 1.02 }}
+              whileTap={{ scale: 0.96 }}
+              disabled={actionLoading || systemLocked}
+              onClick={() => onCommand('LOCK_SYSTEM')}
+              className={`p-4 rounded-2xl border transition-all flex flex-col items-center justify-center text-center gap-2 group cursor-pointer ${
+                systemLocked
+                  ? 'border-2 border-rose-500 bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg shadow-rose-500/30 animate-pulse'
+                  : 'bg-gradient-to-br from-white to-rose-50/60 hover:to-rose-100/70 border-rose-200 hover:border-rose-400 text-slate-800 shadow-xs hover:shadow-md shadow-rose-500/5'
+              }`}
+            >
+              <div
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${
+                  systemLocked ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-600 shadow-xs'
+                }`}
+              >
+                <AlertTriangle className="w-6 h-6" strokeWidth={2} />
+              </div>
+              <div>
+                <span className={`block text-xs sm:text-sm font-black ${systemLocked ? 'text-white' : 'text-rose-700'}`}>
+                  {systemLocked ? 'Đang Phong Tỏa' : 'Khóa Khẩn Cấp'}
+                </span>
+                <span className={`text-[10px] font-medium ${systemLocked ? 'text-rose-100' : 'text-slate-400'}`}>
+                  Chặn phím & thẻ từ
+                </span>
+              </div>
+            </motion.button>
+
+            {/* Nút 4: Mở Khóa Hệ Thống */}
+            <motion.button
+              type="button"
+              whileHover={{ y: -2, scale: 1.02 }}
+              whileTap={{ scale: 0.96 }}
+              disabled={actionLoading || !systemLocked}
+              onClick={() => onCommand('UNLOCK_SYSTEM')}
+              className={`p-4 rounded-2xl border transition-all flex flex-col items-center justify-center text-center gap-2 group ${
+                systemLocked
+                  ? 'border-2 border-emerald-400 bg-gradient-to-br from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30 hover:brightness-105 active:scale-95 cursor-pointer ring-2 ring-emerald-300'
+                  : 'bg-slate-50 border-slate-200/70 text-slate-400 opacity-60 cursor-not-allowed'
+              }`}
+            >
+              <div
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${
+                  systemLocked ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-400'
+                }`}
+              >
+                <ShieldCheck className="w-6 h-6" strokeWidth={2} />
+              </div>
+              <div>
+                <span className={`block text-xs sm:text-sm font-black ${systemLocked ? 'text-white' : 'text-slate-500'}`}>
+                  Mở Khóa Hệ Thống
+                </span>
+                <span className={`text-[10px] font-medium ${systemLocked ? 'text-emerald-100' : 'text-slate-400'}`}>
+                  {systemLocked ? 'Bấm để khôi phục' : 'Đang hoạt động tốt'}
+                </span>
+              </div>
+            </motion.button>
+
           </div>
         </div>
 
-        {/* Security Events Stream */}
-        <div className="lg:col-span-7 p-5 rounded-3xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2.5">
+        {/* CỘT PHẢI: Lịch Sử Hoạt Động (Danh sách sự kiện trực quan) */}
+        <div className="lg:col-span-7 p-5 sm:p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
             <div>
-              <h4 className="text-sm font-semibold text-slate-800">Lịch Sử Hoạt Động</h4>
-              <p className="text-sm text-slate-400">Lịch sử mở cửa và cảnh báo</p>
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+                  <ScrollText className="w-4 h-4" />
+                </div>
+                <h4 className="text-sm font-extrabold text-slate-900">Lịch Sử Hoạt Động</h4>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">Nhật ký mở cửa và cảnh báo an ninh gần nhất</p>
             </div>
-            <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
+            <span className="text-xs font-black text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full font-mono shadow-xs">
               {securityLogs.length} hoạt động
             </span>
           </div>
 
-          <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+          <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
             {securityLogs.length === 0 ? (
-              <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 py-8 text-center text-sm text-gray-400">
-                <div className="rounded-full bg-slate-50 p-3"><ScrollText className="h-7 w-7 text-slate-300" strokeWidth={1.5} /></div>
-                <span>Chưa có hoạt động nào được ghi nhận.</span>
+              <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 py-8 text-center text-slate-400">
+                <div className="rounded-full bg-slate-50 p-3.5 border border-slate-100">
+                  <ScrollText className="h-6 w-6 text-slate-300" strokeWidth={1.5} />
+                </div>
+                <span className="text-xs font-medium">Chưa có hoạt động nào được ghi nhận.</span>
               </div>
             ) : (
-              securityLogs.map((item, idx) => (
-                <div
-                  key={item.id || idx}
-                  className="p-3 rounded-2xl bg-white flex items-center justify-between shadow-[0_4px_18px_rgba(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600">
-                      <AlertTriangle className="w-4 h-4" strokeWidth={1.5} />
+              securityLogs.map((item, idx) => {
+                const visual = getLogVisual(item.action);
+                const ItemIcon = visual.icon;
+
+                return (
+                  <motion.div
+                    key={item.id || idx}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="p-3 rounded-2xl bg-slate-50/70 border border-slate-100 flex items-center justify-between hover:bg-white hover:border-slate-200 transition-all shadow-xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-xl border ${visual.bg}`}>
+                        <ItemIcon className="w-4 h-4" strokeWidth={2} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-extrabold text-slate-800">{item.action}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">
+                          {item.rfid_uid ? `Mã thẻ: ${item.rfid_uid}` : visual.label}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">{item.action}</p>
-                      <p className="text-[10px] text-slate-400 font-mono">
-                        {item.rfid_uid ? `Mã thẻ: ${item.rfid_uid}` : 'Từ hệ thống'}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-mono text-slate-400">
-                    {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-              ))
+                    <span className="text-[11px] font-semibold font-mono text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1 shadow-xs">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                  </motion.div>
+                );
+              })
             )}
           </div>
         </div>

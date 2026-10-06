@@ -6,8 +6,8 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
-    // Bổ sung dòng này để cho phép tên miền Ngrok truy cập
-    allowedHosts: ["scolding-setback-gladly.ngrok-free.dev"],
+    // Cho phép tất cả host để hỗ trợ ngrok và truy cập từ xa
+    allowedHosts: true,
 
     // Giữ nguyên đoạn cấu hình proxy bên dưới của bạn (nếu có)
     proxy: {

@@ -101,7 +101,7 @@ export default function Dashboard() {
         if (typeof res.data.autoCloseDelay === 'number') setAutoCloseDelay(res.data.autoCloseDelay);
       }
     } catch (err) {
-      if (err.response?.status === 401) handleLogout();
+      if (err.response?.status === 401 || err.response?.status === 403) handleLogout();
     }
   }, [handleLogout]);
 
@@ -116,7 +116,7 @@ export default function Dashboard() {
         setLogs([]);
       }
     } catch (err) {
-      if (err.response?.status === 401) handleLogout();
+      if (err.response?.status === 401 || err.response?.status === 403) handleLogout();
     } finally {
       setLoadingLogs(false);
     }
@@ -516,7 +516,11 @@ export default function Dashboard() {
               <div className="lg:col-span-7 flex flex-col justify-between space-y-4">
                 
                 {/* 3.1 Vòng xoay điều khiển chính kèm nút thao tác nhanh */}
-                <div className="p-4 sm:p-5 rounded-3xl bg-slate-50/80 border border-slate-100 shadow-xs flex flex-col items-center justify-between space-y-3">
+                <div className={`p-4 sm:p-5 rounded-3xl transition-all duration-300 flex flex-col items-center justify-between space-y-3 ${
+                  systemLocked
+                    ? 'emergency-alert-pulse bg-gradient-to-r from-rose-50/80 via-white to-rose-50/80'
+                    : 'bg-slate-50/80 border border-slate-100 shadow-xs'
+                }`}>
                   <CenterControl
                     doorOpen={doorOpen}
                     systemLocked={systemLocked}

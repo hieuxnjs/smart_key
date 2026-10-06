@@ -69,48 +69,18 @@ export default function MainLayout({
           currentUser={currentUser}
         />
 
-        {/* Panel chính mờ sang trọng (Màu gốc: Trắng tinh tế bo tròn lớn) */}
-        <main className="animate-fade-in flex-1 bg-slate-50 rounded-3xl lg:rounded-[36px] p-4 sm:p-5 lg:p-6 flex flex-col justify-between overflow-hidden relative text-slate-800 transition-all duration-300">
-          
-          {/* Banner cảnh báo phong tỏa khẩn cấp */}
-          <AnimatePresence>
-            {systemLocked && (
-              <motion.div
-                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-                animate={{ opacity: 1, height: 'auto', marginBottom: 16 }}
-                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="p-3.5 sm:p-4 rounded-2xl bg-rose-600 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg shadow-rose-600/25">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-white/20">
-                      <AlertTriangle className="w-5 h-5 text-white animate-pulse" />
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-sm font-black tracking-tight">KHÓA HỆ THỐNG ĐANG BẬT</p>
-                      <p className="text-[11px] sm:text-xs text-rose-100 font-medium">Phím bấm và thẻ từ đang bị chặn tại chỗ.</p>
-                    </div>
-                  </div>
-                  {onToggleSystemLock && (
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={onToggleSystemLock}
-                      className="px-4 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-rose-700 font-black text-xs shadow-md transition-colors cursor-pointer self-start sm:self-auto"
-                    >
-                      Mở Quyền Truy Cập
-                    </motion.button>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
+        {/* Panel chính */}
+        <main
+          className={`animate-fade-in flex-1 bg-slate-50/90 backdrop-blur-md rounded-3xl lg:rounded-[36px] p-4 sm:p-5 lg:p-6 flex flex-col justify-between overflow-hidden relative text-slate-800 transition-all duration-500 border border-slate-200/60 ${
+            systemLocked
+              ? 'ring-2 ring-rose-500/40 shadow-[0_0_35px_rgba(244,63,94,0.12)]'
+              : 'shadow-sm'
+          }`}
+        >
           {/* Nội dung các Tab */}
           <div className="flex-1 flex flex-col">
             {children}
           </div>
-
         </main>
       </div>
 
