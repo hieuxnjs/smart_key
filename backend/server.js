@@ -11,7 +11,6 @@ const {
   User,
   AccessLog,
   Setting,
-  User,
   initSetting,
 } = require("./models");
 
