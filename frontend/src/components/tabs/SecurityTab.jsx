@@ -1,281 +1,199 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
 import {
-  Shield,
   ShieldAlert,
   ShieldCheck,
   DoorOpen,
   DoorClosed,
-  Radio,
   Lock,
   Unlock,
   Volume2,
-  CheckCircle2,
   AlertTriangle,
+  ScrollText,
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 
 export default function SecurityTab({
   systemLocked = false,
   doorOpen = false,
-  autoModeEnabled = false,
-  mqttConnected = true,
-  onToggleSystemLock,
+  doorState = doorOpen ? 1 : 0,
+  buzzerActive = false,
+  onCommand,
   actionLoading = false,
   logs = [],
+  onToggleBuzzer,
 }) {
-  const handleTestBuzzer = () => {
-    toast.success('Đã gửi lệnh kiểm tra còi báo Buzzer tới ESP32 (Chân D2)!', { icon: '🔊' });
+  const [activeButton, setActiveButton] = useState('open');
+  const securityLogs = Array.isArray(logs) ? logs.slice(0, 30) : [];
+
+  const handleControl = (button, command) => {
+    setActiveButton(button);
+    onCommand(command);
   };
 
-  const securityLogs = (Array.isArray(logs) ? logs : []).filter(
-    (l) =>
-      l.action?.includes('LOCK') ||
-      l.action?.includes('Cảnh báo') ||
-      l.action?.includes('Alarm') ||
-      l.action?.includes('ALERT') ||
-      l.action?.includes('Sai') ||
-      l.action?.includes('Phong tỏa')
-  );
-
   return (
-    <div className="space-y-4 w-full h-full flex flex-col justify-between select-none text-slate-800">
+    <div className="animate-fade-in space-y-4 w-full h-full flex flex-col justify-between select-none text-slate-800">
       
       {/* Header */}
       <div>
         <span className="text-xs font-bold text-blue-600 tracking-wider uppercase">
-          An Ninh & Cảm Biến Ngoại Vi
+          Quản Lý Khóa Cửa
         </span>
-        <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-800 tracking-tight">
-          Trung Tâm Chỉ Huy
+        <h2 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-slate-800 tracking-tight">
+          Bảng Điều Khiển
         </h2>
-        <p className="text-xs text-slate-400 mt-0.5">
-          Giám sát trạng thái cảm biến phần cứng, phong tỏa khẩn cấp và chống xâm nhập
+        <p className="text-sm text-slate-400 mt-0.5">
+          Theo dõi trạng thái cửa và bảo vệ lối vào
         </p>
       </div>
 
       {/* Massive Emergency Lockdown Banner */}
       <div
-        className={`p-4 sm:p-5 rounded-3xl transition-all shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border ${
+        className={`p-5 sm:p-6 rounded-3xl transition-all duration-300 hover:-translate-y-1 hover:shadow-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
           systemLocked
-            ? 'bg-rose-600 text-white border-rose-500 shadow-lg shadow-rose-600/25'
-            : 'bg-slate-50 text-slate-800 border-slate-100'
+            ? 'bg-white text-slate-800 shadow-[0_8px_30px_rgba(244,63,94,0.10)]'
+            : 'bg-white text-slate-800'
         }`}
       >
         <div className="flex items-center gap-3.5">
           <div
             className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner ${
-              systemLocked ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-600 border border-blue-100'
+              systemLocked ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'
             }`}
           >
             {systemLocked ? (
-              <ShieldAlert className="w-8 h-8 text-white animate-pulse" />
+              <ShieldAlert className="w-8 h-8 text-rose-600 animate-pulse" strokeWidth={1.5} />
             ) : (
-              <ShieldCheck className="w-8 h-8 text-emerald-600" />
+              <ShieldCheck className="w-8 h-8 text-emerald-600" strokeWidth={1.5} />
             )}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className={`text-base sm:text-lg font-black tracking-tight ${systemLocked ? 'text-white' : 'text-slate-800'}`}>
-                {systemLocked ? 'ĐANG KÍCH HOẠT PHONG TỎA KHẨN CẤP' : 'CÔNG TẮC PHONG TỎA KHẨN CẤP'}
+              <h3 className="text-base sm:text-lg font-semibold tracking-tight text-slate-800">
+                KHÓA HỆ THỐNG
               </h3>
               <span
                 className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
-                  systemLocked ? 'bg-white text-rose-700 shadow-sm' : 'bg-emerald-100 text-emerald-700'
+                  systemLocked ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'
                 }`}
               >
-                {systemLocked ? 'Phong Tỏa Bật' : 'An Toàn'}
+                {systemLocked ? 'Đang Bị Khóa' : 'Đang Mở'}
               </span>
             </div>
-            <p className={`text-xs mt-1 max-w-xl leading-relaxed ${systemLocked ? 'text-rose-100' : 'text-slate-500'}`}>
+            <p className="text-sm mt-1 max-w-xl leading-relaxed text-slate-400">
               {systemLocked
-                ? 'Toàn bộ đầu đọc thẻ RFID và bàn phím ma trận tại cửa đã bị cô lập hoàn toàn.'
-                : 'Khi kích hoạt, hệ thống sẽ ngắt ngay lập tức bàn phím và thẻ RFID để ngăn chặn đột nhập.'}
+                ? 'Phím bấm và thẻ từ đang bị chặn tại chỗ.'
+                : 'Vô hiệu hóa phím bấm và thẻ từ tại chỗ.'}
             </p>
           </div>
         </div>
-
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={onToggleSystemLock}
+        <button
+          type="button"
+          onClick={() => onCommand(systemLocked ? 'UNLOCK_SYSTEM' : 'LOCK_SYSTEM')}
           disabled={actionLoading}
-          className={`px-5 py-2.5 rounded-xl font-black text-xs shadow-md transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto ${
-            systemLocked
-              ? 'bg-white text-rose-700 hover:bg-rose-50 shadow-sm'
-              : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/25'
-          }`}
+          className={`w-full sm:w-auto sm:min-w-[150px] shrink-0 rounded-xl px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:shadow-md active:scale-95 disabled:opacity-50 ${systemLocked ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'}`}
         >
-          {systemLocked ? 'HỦY PHONG TỎA' : 'KÍCH HOẠT PHONG TỎA'}
-        </motion.button>
+          {systemLocked ? 'MỞ QUYỀN TRUY CẬP' : 'CHẶN THAO TÁC'}
+        </button>
       </div>
 
-      {/* Sensor Diagnostics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        
-        {/* Sensor 1: Cửa Từ Nam Châm */}
-        <div className={`p-3.5 rounded-2xl bg-slate-50 border shadow-xs flex items-center justify-between transition-colors ${
-          doorOpen ? 'border-amber-200 bg-amber-50/50' : 'border-slate-100'
-        }`}>
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                doorOpen ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'
-              }`}
-            >
-              {doorOpen ? <DoorOpen className="w-5 h-5" /> : <DoorClosed className="w-5 h-5" />}
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-slate-800">Cửa Từ Nam Châm</h4>
-              <p className="text-[10px] text-slate-400">
-                {doorOpen ? 'Khung cửa đang mở' : 'Đã khép kín chốt'}
-              </p>
-            </div>
+      {/* Trạng thái khóa cửa */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="p-4 rounded-3xl border border-indigo-100/50 bg-gradient-to-br from-indigo-50/50 to-violet-50/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${doorState === 2 ? 'bg-rose-100 text-rose-600' : doorState === 1 ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-600'}`}>
+            {doorState === 1 ? <DoorOpen className="w-5 h-5" strokeWidth={1.5} /> : <DoorClosed className="w-5 h-5" strokeWidth={1.5} />}
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-slate-800">Trạng Thái Cửa</h4>
+            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${doorState === 2 ? 'bg-rose-50 text-rose-600' : doorState === 1 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'}`}>{doorState === 1 ? 'Đang Mở' : doorState === 2 ? 'Kẹt Cửa' : doorState === 0 ? 'Đang Đóng' : 'Chưa Có Dữ Liệu'}</span>
+          </div>
+        </div>
+
+        <div
+          role="switch"
+          aria-checked={buzzerActive}
+          aria-label={`Còi báo động ${buzzerActive ? 'đang bật' : 'đang tắt'}`}
+          aria-disabled={!onToggleBuzzer || actionLoading}
+          tabIndex={onToggleBuzzer && !actionLoading ? 0 : -1}
+          onClick={() => {
+            if (onToggleBuzzer && !actionLoading) onToggleBuzzer(!buzzerActive);
+          }}
+          onKeyDown={(event) => {
+            if (onToggleBuzzer && !actionLoading && (event.key === 'Enter' || event.key === ' ')) {
+              event.preventDefault();
+              onToggleBuzzer(!buzzerActive);
+            }
+          }}
+          className={`p-4 rounded-3xl border border-indigo-100/50 bg-gradient-to-br from-indigo-50/50 to-violet-50/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-md active:scale-95 flex items-center gap-3 ${onToggleBuzzer && !actionLoading ? 'cursor-pointer' : 'cursor-wait opacity-70'}`}
+        >
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${buzzerActive ? 'bg-rose-100 text-rose-600' : 'bg-slate-200 text-slate-500'}`}>
+            <Volume2 className="w-5 h-5" strokeWidth={1.5} />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-slate-800">Còi Báo Động</h4>
+            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${buzzerActive ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'}`}>{buzzerActive ? 'Đang Kêu' : 'Đang Tắt'}</span>
           </div>
           <span
-            className={`w-2.5 h-2.5 rounded-full ${doorOpen ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'}`}
-          />
+            aria-hidden="true"
+            className={`relative ml-auto inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${buzzerActive ? 'bg-rose-500' : 'bg-slate-300'}`}
+          >
+            <span className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${buzzerActive ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </span>
         </div>
 
-        {/* Sensor 2: Cảm Biến PIR Chuyển Động */}
-        <div className={`p-3.5 rounded-2xl bg-slate-50 border shadow-xs flex items-center justify-between transition-colors ${
-          autoModeEnabled ? 'border-blue-200 bg-blue-50/50' : 'border-slate-100'
-        }`}>
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                autoModeEnabled ? 'bg-blue-100 text-blue-600' : 'bg-slate-200 text-slate-500'
-              }`}
-            >
-              <Radio className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-slate-800">Cảm Biến PIR</h4>
-              <p className="text-[10px] text-slate-400">
-                {autoModeEnabled ? 'Đang giám sát' : 'Đang tắt'}
-              </p>
-            </div>
+        <div className="p-4 rounded-3xl border border-indigo-100/50 bg-gradient-to-br from-indigo-50/50 to-violet-50/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${systemLocked ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
+            {systemLocked ? <Lock className="w-5 h-5" strokeWidth={1.5} /> : <Unlock className="w-5 h-5" strokeWidth={1.5} />}
           </div>
-          <span
-            className={`w-2.5 h-2.5 rounded-full ${autoModeEnabled ? 'bg-blue-500 animate-pulse' : 'bg-slate-300'}`}
-          />
-        </div>
-
-        {/* Sensor 3: Cảm Biến Chống Cạy Phá */}
-        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 shadow-xs flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-slate-800">Cảm Biến Cạy Phá</h4>
-              <p className="text-[10px] text-slate-400">Vỏ hộp kín (An toàn)</p>
-            </div>
+          <div>
+            <h4 className="text-xs font-bold text-slate-800">Quyền Truy Cập</h4>
+            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${systemLocked ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>{systemLocked ? 'Bị Khóa' : 'Đang Mở'}</span>
           </div>
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
         </div>
-
-        {/* Sensor 4: Khóa Bàn Phím & RFID */}
-        <div className={`p-3.5 rounded-2xl bg-slate-50 border shadow-xs flex items-center justify-between transition-colors ${
-          systemLocked ? 'border-rose-200 bg-rose-50/50' : 'border-slate-100'
-        }`}>
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                systemLocked ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'
-              }`}
-            >
-              {systemLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-slate-800">Khóa Bàn Phím / RFID</h4>
-              <p className="text-[10px] text-slate-400">
-                {systemLocked ? 'Bị vô hiệu hóa' : 'Sẵn sàng tiếp nhận'}
-              </p>
-            </div>
-          </div>
-          <span
-            className={`w-2.5 h-2.5 rounded-full ${systemLocked ? 'bg-rose-500' : 'bg-emerald-500'}`}
-          />
-        </div>
-
       </div>
 
       {/* Security Action Bar & Incident Log */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 items-stretch">
         
-        {/* Security Quick Actions */}
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 shadow-xs space-y-3 flex flex-col justify-between">
+        {/* Điều Khiển Cửa */}
+        <div className="lg:col-span-5 p-5 rounded-3xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl space-y-4">
           <div>
-            <h4 className="text-sm font-bold text-slate-800">Hành Động An Ninh</h4>
-            <p className="text-xs text-slate-400 mt-0.5">Kiểm tra phần cứng và còi báo</p>
+            <h4 className="text-sm font-semibold text-slate-800">Điều Khiển Cửa</h4>
+            <p className="text-sm text-slate-400 mt-0.5">Chọn thao tác cần thực hiện</p>
           </div>
-
-          <div className="space-y-2.5">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleTestBuzzer}
-              className="w-full py-2.5 px-3.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200/80 text-slate-700 text-xs font-bold flex items-center justify-between shadow-xs transition-all cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <Volume2 className="w-4 h-4 text-blue-600" />
-                <span>Kiểm Tra Còi Báo Động</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-mono">Chân D2</span>
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={onToggleSystemLock}
-              className={`w-full py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-between shadow-xs transition-all cursor-pointer ${
-                systemLocked
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                  : 'bg-rose-600 hover:bg-rose-500 text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" />
-                <span>{systemLocked ? 'Hủy Phong Tỏa Cửa' : 'Kích Hoạt Phong Tỏa'}</span>
-              </div>
-              <span className="text-[10px] opacity-80">Ngắt tức thì</span>
-            </motion.button>
-          </div>
-
-          <div className="p-2.5 bg-blue-50/80 rounded-xl border border-blue-100 text-[11px] text-blue-700 flex items-center gap-2">
-            <Shield className="w-4 h-4 text-blue-600 flex-shrink-0" />
-            <span>Kênh mã hóa bảo mật giữa Dashboard và ESP32.</span>
+          <div className="grid grid-cols-2 gap-4">
+            <button type="button" disabled={actionLoading || systemLocked} onClick={() => handleControl('open', 'OPEN_DOOR')} className={`flex h-28 flex-col items-center justify-center gap-2 rounded-2xl px-3 py-3 text-center text-sm font-medium transition-colors duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${activeButton === 'open' ? 'bg-violet-500 text-white shadow-md' : 'bg-white text-violet-500 hover:bg-violet-50'}`}><Unlock className="h-8 w-8 shrink-0" strokeWidth={2} /><span>Mở Cửa</span></button>
+            <button type="button" disabled={actionLoading} onClick={() => handleControl('close', 'CLOSE_DOOR')} className={`flex h-28 flex-col items-center justify-center gap-2 rounded-2xl px-3 py-3 text-center text-sm font-medium transition-colors duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${activeButton === 'close' ? 'bg-slate-700 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-50'}`}><Lock className="h-8 w-8 shrink-0" strokeWidth={2} /><span>Đóng Cửa</span></button>
+            <button type="button" disabled={actionLoading || systemLocked} onClick={() => handleControl('lock', 'LOCK_SYSTEM')} className={`flex h-28 flex-col items-center justify-center gap-2 rounded-2xl px-3 py-3 text-center text-sm font-medium transition-colors duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-100 ${activeButton === 'lock' || systemLocked ? 'animate-pulse bg-red-500 text-white shadow-md ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'border border-red-100 bg-white text-red-500 hover:bg-red-50'}`}><AlertTriangle className="h-8 w-8 shrink-0" strokeWidth={2} /><span>Khóa Khẩn Cấp</span></button>
+            <button type="button" disabled={actionLoading || !systemLocked} onClick={() => handleControl('unlock', 'UNLOCK_SYSTEM')} className={`flex h-28 flex-col items-center justify-center gap-2 rounded-2xl px-3 py-3 text-center text-sm font-medium transition-colors duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${activeButton === 'unlock' ? 'bg-emerald-500 text-white shadow-md' : 'border border-emerald-100 bg-white text-emerald-500 hover:bg-emerald-50'}`}><ShieldCheck className="h-8 w-8 shrink-0" strokeWidth={2} /><span>Mở Khóa Hệ Thống</span></button>
           </div>
         </div>
 
         {/* Security Events Stream */}
-        <div className="lg:col-span-2 p-4 rounded-2xl bg-slate-50 border border-slate-100 shadow-xs flex flex-col justify-between">
+        <div className="lg:col-span-7 p-5 rounded-3xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2.5">
             <div>
-              <h4 className="text-sm font-bold text-slate-800">Sự Kiện An Ninh & Cảnh Báo</h4>
-              <p className="text-xs text-slate-400">Lịch sử phong tỏa, cảnh báo và đột nhập</p>
+              <h4 className="text-sm font-semibold text-slate-800">Lịch Sử Hoạt Động</h4>
+              <p className="text-sm text-slate-400">Lịch sử mở cửa và cảnh báo</p>
             </div>
-            <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-full">
-              {securityLogs.length} sự kiện
+            <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
+              {securityLogs.length} hoạt động
             </span>
           </div>
 
           <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
             {securityLogs.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
-                <ShieldCheck className="w-7 h-7 text-emerald-500" />
-                <span>Không có sự cố an ninh nào. Hệ thống an toàn tuyệt đối.</span>
+              <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 py-8 text-center text-sm text-gray-400">
+                <div className="rounded-full bg-slate-50 p-3"><ScrollText className="h-7 w-7 text-slate-300" strokeWidth={1.5} /></div>
+                <span>Chưa có hoạt động nào được ghi nhận.</span>
               </div>
             ) : (
               securityLogs.map((item, idx) => (
                 <div
                   key={item.id || idx}
-                  className="p-2.5 rounded-xl bg-white border border-slate-100 flex items-center justify-between shadow-xs hover:shadow-xs transition-all"
+                  className="p-3 rounded-2xl bg-white flex items-center justify-between shadow-[0_4px_18px_rgba(0,0,0,0.04)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
                 >
                   <div className="flex items-center gap-2.5">
                     <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600">
-                      <AlertTriangle className="w-4 h-4" />
+                      <AlertTriangle className="w-4 h-4" strokeWidth={1.5} />
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-800">{item.action}</p>

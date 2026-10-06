@@ -18,9 +18,9 @@ export default function Sidebar({
 }) {
   const navItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Bảng Điều Khiển', shortLabel: 'Tổng quan' },
-    { id: 'security', icon: Shield, label: 'Trung Tâm Chỉ Huy', shortLabel: 'Chỉ huy' },
+    { id: 'security', icon: Shield, label: 'Quản Lý Khóa Cửa', shortLabel: 'Khóa cửa' },
     { id: 'history', icon: Clock, label: 'Nhật Ký Truy Cập', shortLabel: 'Nhật ký' },
-    { id: 'rfid', icon: Key, label: 'Quản Lý Thẻ RFID', shortLabel: 'Thẻ từ' },
+    { id: 'rfid', icon: Key, label: 'Quản Lý Thẻ Từ', shortLabel: 'Thẻ từ' },
     { id: 'settings', icon: Settings, label: 'Cấu Hình Hệ Thống', shortLabel: 'Cài đặt' },
   ];
 
@@ -47,11 +47,11 @@ export default function Sidebar({
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => handleSelect('dashboard')}
-            title="ESP32 Smart Lock - Bảng Điều Khiển"
+            title="Hệ Thống Khóa Thông Minh"
             className="cursor-pointer focus:outline-none"
           >
             <img
-              src="/logo.jpg"
+              src="/logo.svg"
               alt="Smart Lock Logo"
               className="w-12 h-12 object-contain rounded-xl drop-shadow-md hover:brightness-105 transition-all"
             />

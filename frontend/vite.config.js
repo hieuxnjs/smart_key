@@ -4,12 +4,12 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: "0.0.0.0",
+    host: true,
     port: 5173,
-    watch: {
-      usePolling: true,
-    },
-    // Đảm nhận nhiệm vụ làm "cầu nối" gọi API sang Backend
+    // Bổ sung dòng này để cho phép tên miền Ngrok truy cập
+    allowedHosts: ["scolding-setback-gladly.ngrok-free.dev"],
+
+    // Giữ nguyên đoạn cấu hình proxy bên dưới của bạn (nếu có)
     proxy: {
       "/api": {
         target: "http://backend:5000",

@@ -10,14 +10,10 @@ import {
   DoorClosed,
   TrendingUp,
   RotateCcw,
-  Radio,
-  Lock,
-  Unlock,
   KeyRound,
   Fingerprint,
   Smartphone,
   Check,
-  Save,
   Loader2,
   Clock,
   Inbox,
@@ -33,6 +29,7 @@ import SecurityTab from '../components/tabs/SecurityTab';
 import HistoryTab from '../components/tabs/HistoryTab';
 import RfidTab from '../components/tabs/RfidTab';
 import SettingsTab from '../components/tabs/SettingsTab';
+import PasswordResetModal from '../components/PasswordResetModal';
 
 const API_BASE = '/api';
 
@@ -47,12 +44,14 @@ export default function Dashboard() {
   // Navigation tab state ('dashboard' | 'security' | 'history' | 'rfid' | 'settings')
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false);
 
   // Hardware telemetry states
   const [doorOpen, setDoorOpen] = useState(false);
+  const [doorState, setDoorState] = useState(0);
+  const [buzzerActive, setBuzzerActive] = useState(false);
   const [systemLocked, setSystemLocked] = useState(false);
   const [mqttConnected, setMqttConnected] = useState(true);
-  const [autoModeEnabled, setAutoModeEnabled] = useState(false);
   const [autoCloseDelay, setAutoCloseDelay] = useState(10);
   const [logs, setLogs] = useState([]);
   
@@ -60,12 +59,10 @@ export default function Dashboard() {
   const [actionLoading, setActionLoading] = useState(false);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [savingPir, setSavingPir] = useState(false);
   const [clearingLogs, setClearingLogs] = useState(false);
 
   // Local state for Quick Settings in Dashboard
-  const [pirActive, setPirActive] = useState(false);
-  const [pirDelay, setPirDelay] = useState(10);
+  const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [submittingPin, setSubmittingPin] = useState(false);
@@ -97,31 +94,11 @@ export default function Dashboard() {
       const res = await axios.get(`${API_BASE}/status`, { headers: getAuthHeaders() });
       if (res.data.success) {
         setDoorOpen(Boolean(res.data.doorOpen));
+        if ([0, 1, 2].includes(Number(res.data.doorState))) setDoorState(Number(res.data.doorState));
+        setBuzzerActive(Boolean(res.data.buzzerActive));
         setSystemLocked(Boolean(res.data.systemLocked));
         setMqttConnected(Boolean(res.data.mqttConnected));
-        if (typeof res.data.autoModeEnabled !== 'undefined') {
-          setAutoModeEnabled(res.data.autoModeEnabled);
-          setPirActive(res.data.autoModeEnabled);
-        }
-        if (typeof res.data.autoCloseDelay !== 'undefined') {
-          setAutoCloseDelay(res.data.autoCloseDelay);
-          setPirDelay(res.data.autoCloseDelay);
-        }
-      }
-    } catch (err) {
-      if (err.response?.status === 401) handleLogout();
-    }
-  }, [handleLogout]);
-
-  // 2. GET /api/settings
-  const fetchSettings = useCallback(async () => {
-    try {
-      const res = await axios.get(`${API_BASE}/settings`, { headers: getAuthHeaders() });
-      if (res.data.success && res.data.data) {
-        setAutoModeEnabled(Boolean(res.data.data.auto_mode_enabled));
-        setPirActive(Boolean(res.data.data.auto_mode_enabled));
-        setAutoCloseDelay(res.data.data.auto_close_delay || 10);
-        setPirDelay(res.data.data.auto_close_delay || 10);
+        if (typeof res.data.autoCloseDelay === 'number') setAutoCloseDelay(res.data.autoCloseDelay);
       }
     } catch (err) {
       if (err.response?.status === 401) handleLogout();
@@ -149,7 +126,7 @@ export default function Dashboard() {
   const handleManualRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([fetchStatus(), fetchLogs(), fetchSettings()]);
+      await Promise.all([fetchStatus(), fetchLogs()]);
       toast.success('Đã cập nhật dữ liệu mới nhất!', { icon: '🔄' });
     } catch {
       toast.error('Lỗi khi làm mới dữ liệu');
@@ -160,7 +137,6 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchStatus();
-    fetchSettings();
     fetchLogs();
 
     const interval = setInterval(() => {
@@ -169,7 +145,7 @@ export default function Dashboard() {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [fetchStatus, fetchSettings, fetchLogs]);
+  }, [fetchStatus, fetchLogs]);
 
   // Weekly unlocks calculation
   const weeklyData = useMemo(() => {
@@ -206,7 +182,7 @@ export default function Dashboard() {
   // Remote Door Open
   const handleOpenDoor = async () => {
     if (systemLocked) {
-      toast.error('Hệ thống đang Phong Tỏa Khẩn Cấp! Vui lòng hủy phong tỏa trước.', { icon: '⚠️' });
+      toast.error('Hệ thống đang khóa quyền truy cập. Hãy mở lại quyền trước.', { icon: '⚠️' });
       return;
     }
 
@@ -236,64 +212,80 @@ export default function Dashboard() {
       if (res.data.success) {
         setSystemLocked(res.data.systemLocked);
         if (res.data.systemLocked) {
-          toast.error(res.data.message || 'ĐÃ KÍCH HOẠT PHONG TỎA KHẨN CẤP!', { icon: '🚨' });
+          toast.error(res.data.message || 'Đã khóa quyền truy cập.', { icon: '🚨' });
         } else {
-          toast.success(res.data.message || 'Đã hủy phong tỏa hệ thống.', { icon: '✅' });
+          toast.success(res.data.message || 'Đã mở lại quyền truy cập.', { icon: '✅' });
         }
         if (res.data.log) {
           setLogs((prev) => [res.data.log, ...(Array.isArray(prev) ? prev : [])]);
         }
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Lỗi khi chuyển trạng thái phong tỏa.');
+      toast.error(err.response?.data?.error || 'Không thể đổi quyền truy cập.');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Save PIR settings
-  const handleSavePirSettings = async () => {
-    setSavingPir(true);
+  const handleDeviceCommand = async (command) => {
+    setActionLoading(true);
     try {
-      const res = await axios.post(
-        `${API_BASE}/settings`,
-        { auto_mode_enabled: pirActive, auto_close_delay: pirDelay },
-        { headers: getAuthHeaders() }
-      );
+      const res = await axios.post(`${API_BASE}/control/command`, { command }, { headers: getAuthHeaders() });
       if (res.data.success) {
-        setAutoModeEnabled(pirActive);
-        setAutoCloseDelay(pirDelay);
-        toast.success('Đã lưu cấu hình cảm biến PIR!', { icon: '✨' });
+        setSystemLocked(Boolean(res.data.systemLocked));
+        if (command === 'BUZZER_ON' || command === 'BUZZER_OFF') {
+          setBuzzerActive(Boolean(res.data.buzzerActive));
+        }
+        toast.success(res.data.message || 'Đã gửi lệnh tới khóa cửa.');
+        if (res.data.log) setLogs((prev) => [res.data.log, ...(Array.isArray(prev) ? prev : [])]);
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Lỗi cập nhật cảm biến PIR.');
+      toast.error(err.response?.data?.error || 'Không thể điều khiển khóa cửa.');
     } finally {
-      setSavingPir(false);
+      setActionLoading(false);
+    }
+  };
+
+  const handleResetLockPassword = async (webPassword, newPin) => {
+    try {
+      const res = await axios.post(
+        `${API_BASE}/settings/password/reset`,
+        { admin_pass: webPassword, pin: newPin },
+        { headers: getAuthHeaders() },
+      );
+      toast.success(res.data.message || 'Đã đặt lại mật khẩu khóa.');
+      fetchLogs();
+      return true;
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Không thể đặt lại mật khẩu khóa.');
+      return false;
     }
   };
 
   // Update PIN
-  const handleUpdatePassword = async (e) => {
-    e.preventDefault();
-    if (!newPin || newPin.length < 4) {
-      toast.error('Mã PIN phải có ít nhất 4 chữ số');
-      return;
+  const handleUpdatePassword = async (oldPassword, newPassword) => {
+    if (!oldPassword || !/^\d{4,8}$/.test(newPassword || '')) {
+      toast.error('Vui lòng nhập mật khẩu cũ và mật khẩu mới gồm 4-8 chữ số.');
+      return false;
     }
 
     setSubmittingPin(true);
     try {
       const res = await axios.post(
         `${API_BASE}/settings/password`,
-        { newPassword: newPin },
+        { oldPassword, newPassword },
         { headers: getAuthHeaders() }
       );
       if (res.data.success) {
-        toast.success(res.data.message || 'Đã đổi mã PIN mở cửa!', { icon: '🔑' });
+        toast.success(res.data.message || 'Đã cập nhật mật khẩu mở cửa!', { icon: '🔑' });
+        setCurrentPin('');
         setNewPin('');
         fetchLogs();
+        return true;
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Lỗi khi đổi mã PIN.');
+      toast.error(err.response?.data?.error || 'Không thể cập nhật mật khẩu mở cửa.');
+      return false;
     } finally {
       setSubmittingPin(false);
     }
@@ -323,8 +315,8 @@ export default function Dashboard() {
       return {
         icon: Fingerprint,
         bg: 'bg-emerald-50 text-emerald-600',
-        title: log.rfid_uid ? `Thẻ RFID: ${log.rfid_uid}` : 'Quẹt thẻ RFID',
-        subtitle: 'Đầu đọc RC522',
+        title: log.rfid_uid ? `Thẻ từ: ${log.rfid_uid}` : 'Mở cửa bằng thẻ từ',
+        subtitle: 'Truy cập bằng thẻ',
       };
     }
     if (action.includes('App') || action.includes('Dashboard') || action.includes('Web') || action.includes('REMOTE')) {
@@ -337,10 +329,10 @@ export default function Dashboard() {
     }
     if (action.includes('PIR') || action.includes('Auto') || action.includes('Tự động')) {
       return {
-        icon: Radio,
+        icon: KeyRound,
         bg: 'bg-indigo-50 text-indigo-600',
-        title: 'Tự động mở (PIR)',
-        subtitle: 'Cảm biến chuyển động',
+        title: 'Mở cửa tự động',
+        subtitle: 'Hoạt động của khóa cửa',
       };
     }
     if (action.includes('LOCKDOWN_ENABLED') || action.includes('Phong tỏa')) {
@@ -363,7 +355,7 @@ export default function Dashboard() {
       icon: KeyRound,
       bg: 'bg-slate-100 text-slate-600',
       title: action || 'Sự kiện cửa',
-      subtitle: log.rfid_uid || 'Cảm biến kích hoạt',
+      subtitle: log.rfid_uid ? `Thẻ từ ${log.rfid_uid}` : 'Hoạt động của khóa cửa',
     };
   };
 
@@ -379,6 +371,7 @@ export default function Dashboard() {
   const safeLogs = Array.isArray(logs) ? logs : [];
 
   return (
+    <>
     <MainLayout
       activeTab={activeTab}
       onSelectTab={setActiveTab}
@@ -407,13 +400,13 @@ export default function Dashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div>
                 <span className="text-xs font-bold text-blue-600 tracking-wider uppercase">
-                  ESP32 Smart Lock System
+                  HỆ THỐNG KHÓA THÔNG MINH
                 </span>
                 <h1 className="text-2xl lg:text-3xl font-extrabold text-slate-800 tracking-tight">
-                  Trung Tâm Bảo Mật
+                  Bảng Điều Khiển Khóa Cửa
                 </h1>
                 <p className="text-xs text-slate-400 font-medium mt-0.5">
-                  Giám sát cảm biến thời gian thực, điều khiển khóa điện từ và nhật ký truy cập
+                  Theo dõi trạng thái cửa, quản lý quyền truy cập và xem nhật ký hoạt động
                 </p>
               </div>
 
@@ -434,37 +427,39 @@ export default function Dashboard() {
             </div>
 
             {/* 2. DÃY 4 THẺ CHỈ SỐ TỔNG QUAN (KPI METRICS STRIP - GIẢM TRỐNG TOÀN DIỆN) */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               
               {/* Metric 1: Cửa Từ */}
               <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 shadow-xs flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                      doorOpen
+                      doorState === 2
+                        ? 'bg-rose-100 text-rose-600'
+                        : doorState === 1
                         ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
                         : 'bg-slate-200 text-slate-600'
                     }`}
                   >
-                    {doorOpen ? <DoorOpen className="w-5 h-5" /> : <DoorClosed className="w-5 h-5" />}
+                    {doorState === 1 ? <DoorOpen className="w-5 h-5" /> : <DoorClosed className="w-5 h-5" />}
                   </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                      Khóa Cửa Từ
+                      Khóa Cửa
                     </span>
                     <h4 className="text-sm font-extrabold text-slate-800">
-                      {doorOpen ? 'Cửa Đang Mở' : 'Cửa Đang Đóng'}
+                      {doorState === 1 ? 'Đang Mở' : doorState === 2 ? 'Kẹt Cửa' : 'Đang Đóng'}
                     </h4>
                   </div>
                 </div>
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    doorOpen ? 'bg-emerald-500 animate-ping' : 'bg-slate-300'
+                    doorState === 2 ? 'bg-rose-500 animate-pulse' : doorState === 1 ? 'bg-emerald-500 animate-ping' : 'bg-slate-300'
                   }`}
                 />
               </div>
 
-              {/* Metric 2: Phong Tỏa An Ninh */}
+              {/* Metric 2: Quyền Truy Cập */}
               <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 shadow-xs flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div
@@ -476,10 +471,10 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                      Trạng Thái An Ninh
+                      Quyền Truy Cập
                     </span>
                     <h4 className="text-sm font-extrabold text-slate-800">
-                      {systemLocked ? 'Đang Phong Tỏa' : 'Bảo Vệ Chuẩn'}
+                      {systemLocked ? 'Bị Khóa' : 'Đang Mở'}
                     </h4>
                   </div>
                 </div>
@@ -489,30 +484,6 @@ export default function Dashboard() {
                   }`}
                 >
                   {systemLocked ? 'Khóa' : 'Sẵn Sàng'}
-                </span>
-              </div>
-
-              {/* Metric 3: Cảm Biến PIR */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 shadow-xs flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      autoModeEnabled ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'
-                    }`}
-                  >
-                    <Radio className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                      Tự Động Hóa PIR
-                    </span>
-                    <h4 className="text-sm font-extrabold text-slate-800">
-                      {autoModeEnabled ? 'Đang Bật (Tự Mở)' : 'Đang Tắt'}
-                    </h4>
-                  </div>
-                </div>
-                <span className="text-[11px] font-bold font-mono text-blue-600">
-                  {autoCloseDelay}s
                 </span>
               </div>
 
@@ -532,7 +503,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <span className="text-[10px] font-bold text-slate-400 font-mono">
-                  MySQL
+                  Đã lưu
                 </span>
               </div>
 
@@ -552,8 +523,7 @@ export default function Dashboard() {
                     onOpenDoor={handleOpenDoor}
                     actionLoading={actionLoading}
                     mqttConnected={mqttConnected}
-                    autoModeEnabled={autoModeEnabled}
-                  />
+                    />
 
                   {/* Nút thao tác an ninh ngay dưới CenterControl */}
                   <div className="w-full flex items-center justify-center gap-3 pt-1 border-t border-slate-200/60">
@@ -571,12 +541,12 @@ export default function Dashboard() {
                       {systemLocked ? (
                         <>
                           <ShieldCheck className="w-4 h-4" />
-                          <span>Hủy Phong Tỏa Hệ Thống</span>
+                          <span>Mở Quyền Truy Cập</span>
                         </>
                       ) : (
                         <>
                           <ShieldAlert className="w-4 h-4" />
-                          <span>Kích Hoạt Phong Tỏa Khẩn Cấp</span>
+                          <span>Chặn Thao Tác</span>
                         </>
                       )}
                     </motion.button>
@@ -634,7 +604,7 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-bold text-slate-800">Nhật Ký Hoạt Động Gần Nhất</h3>
-                      <p className="text-[11px] text-slate-400">Tự động đồng bộ với MySQL</p>
+                      <p className="text-[11px] text-slate-400">Nhật ký truy cập gần đây</p>
                     </div>
 
                     <button
@@ -693,113 +663,52 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* 3.4 Cài Đặt Nhanh Cảm Biến PIR & Mã PIN */}
+                {/* Cập nhật mật khẩu mở cửa */}
                 <div className="p-4 rounded-3xl bg-slate-50/80 border border-slate-100 shadow-xs space-y-3.5">
-                  
-                  {/* PIR Switch */}
-                  <div className="space-y-2">
+                  <form onSubmit={(e) => { e.preventDefault(); handleUpdatePassword(currentPin, newPin); }} className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="p-1 rounded-lg bg-emerald-500/10 text-emerald-600">
-                          <Radio className="w-3.5 h-3.5" />
-                        </div>
-                        <h4 className="text-xs font-bold text-slate-800">Cảm Biến Tự Động PIR</h4>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        pirActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
-                      }`}>
-                        {pirActive ? 'Đang Bật' : 'Tắt'}
-                      </span>
+                      <h4 className="text-xs font-bold text-slate-800">Đổi Mật Khẩu Mở Cửa</h4>
                     </div>
-
-                    <div className="flex items-center justify-between pt-0.5">
-                      <p className="text-[11px] text-slate-500">Tự mở cửa khi có người lại gần</p>
-                      <button
-                        type="button"
-                        onClick={() => setPirActive(!pirActive)}
-                        className={`w-10 h-5.5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors ${
-                          pirActive ? 'bg-emerald-500 justify-end' : 'bg-slate-300 justify-start'
-                        }`}
-                      >
-                        <motion.div layout className="bg-white w-4.5 h-4.5 rounded-full shadow-md" />
-                      </button>
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600">
-                        <span>Thời gian trễ:</span>
-                        <span className="text-blue-600 font-bold font-mono">{pirDelay}s</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="3"
-                        max="60"
-                        value={pirDelay}
-                        onChange={(e) => setPirDelay(parseInt(e.target.value, 10))}
-                        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleSavePirSettings}
-                      disabled={savingPir}
-                      className="w-full py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-60"
-                    >
-                      {savingPir ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                      <span>Lưu Cài Đặt PIR</span>
-                    </button>
-                  </div>
-
-                  <div className="w-full h-px bg-slate-200/80 my-1" />
-
-                  {/* Đổi mã PIN Bàn Phím */}
-                  <form onSubmit={handleUpdatePassword} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="p-1 rounded-lg bg-blue-500/10 text-blue-600">
-                          <Lock className="w-3.5 h-3.5" />
-                        </div>
-                        <h4 className="text-xs font-bold text-slate-800">Đổi Mã PIN Bàn Phím</h4>
-                      </div>
-                      <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full">
-                        Đồng bộ ESP32
-                      </span>
-                    </div>
-
+                    <input
+                      type={showPin ? 'text' : 'password'}
+                      maxLength={8}
+                      value={currentPin}
+                      onChange={(e) => setCurrentPin(e.target.value)}
+                      placeholder="Nhập mật khẩu cũ"
+                      aria-label="Nhập mật khẩu cũ"
+                      inputMode="numeric"
+                      autoComplete="current-password"
+                      className="w-full px-3 py-1.5 text-xs font-mono rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                     <div className="relative">
                       <input
                         type={showPin ? 'text' : 'password'}
                         maxLength={8}
                         value={newPin}
                         onChange={(e) => setNewPin(e.target.value)}
-                        placeholder="Nhập mã PIN mới (4-8 số)"
+                        placeholder="Nhập mật khẩu mới (4-8 số)"
+                        aria-label="Nhập mật khẩu mới"
+                        inputMode="numeric"
+                        autoComplete="new-password"
                         className="w-full px-3 py-1.5 text-xs font-mono rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowPin(!showPin)}
-                        className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                      >
+                      <button type="button" onClick={() => setShowPin(!showPin)} className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 cursor-pointer">
                         {showPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-
                     <button
                       type="submit"
-                      disabled={submittingPin || !newPin}
-                      className={`w-full py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer ${
-                        !newPin || submittingPin
-                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                          : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20'
-                      }`}
+                      disabled={submittingPin || !currentPin || !newPin}
+                      className={`w-full py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer ${!currentPin || !newPin || submittingPin ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20'}`}
                     >
                       {submittingPin ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                      <span>Cập Nhật PIN</span>
+                      <span>Lưu Mật Khẩu</span>
+                    </button>
+                    <button type="button" onClick={() => setIsPasswordResetOpen(true)} className="w-full text-center text-[11px] font-semibold text-blue-600 hover:text-blue-800">
+                      Quên mật khẩu khóa?
                     </button>
                   </form>
-
                 </div>
-
               </div>
 
             </div>
@@ -810,7 +719,16 @@ export default function Dashboard() {
         {/* TAB 2: TRUNG TÂM CHỈ HUY */}
         {activeTab === 'security' && (
           <motion.div key="security" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="flex-1 flex flex-col">
-            <SecurityTab systemLocked={systemLocked} doorOpen={doorOpen} autoModeEnabled={autoModeEnabled} mqttConnected={mqttConnected} onToggleSystemLock={handleToggleSystemLock} actionLoading={actionLoading} logs={logs} />
+            <SecurityTab
+              systemLocked={systemLocked}
+              doorOpen={doorOpen}
+              doorState={doorState}
+              buzzerActive={buzzerActive}
+              onCommand={handleDeviceCommand}
+              onToggleBuzzer={(enabled) => handleDeviceCommand(enabled ? 'BUZZER_ON' : 'BUZZER_OFF')}
+              actionLoading={actionLoading}
+              logs={logs}
+            />
           </motion.div>
         )}
 
@@ -831,11 +749,18 @@ export default function Dashboard() {
         {/* TAB 5: CẤU HÌNH HỆ THỐNG */}
         {activeTab === 'settings' && (
           <motion.div key="settings" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="flex-1 flex flex-col">
-            <SettingsTab autoModeEnabled={autoModeEnabled} autoCloseDelay={autoCloseDelay} onSavePirSettings={handleSavePirSettings} savingPir={savingPir} onUpdatePassword={handleUpdatePassword} mqttConnected={mqttConnected} onClearLogs={handleClearLogs} clearingLogs={clearingLogs} />
+            <SettingsTab onUpdatePassword={handleUpdatePassword} onForgotPassword={() => setIsPasswordResetOpen(true)} mqttConnected={mqttConnected} onClearLogs={handleClearLogs} clearingLogs={clearingLogs} />
           </motion.div>
         )}
 
       </AnimatePresence>
     </MainLayout>
+    <PasswordResetModal
+      key={isPasswordResetOpen ? 'open' : 'closed'}
+      isOpen={isPasswordResetOpen}
+      onClose={() => setIsPasswordResetOpen(false)}
+      onReset={handleResetLockPassword}
+    />
+    </>
   );
 }

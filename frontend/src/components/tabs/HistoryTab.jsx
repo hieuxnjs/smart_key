@@ -6,7 +6,6 @@ import {
   Download,
   Fingerprint,
   Smartphone,
-  Radio,
   ShieldAlert,
   Inbox,
 } from 'lucide-react';
@@ -39,7 +38,7 @@ export default function HistoryTab({ logs = [], onRefreshLogs, loadingLogs = fal
       return;
     }
 
-    const headers = ['ID', 'Hành Động', 'Mã Thẻ (RFID_UID)', 'Thời Gian'];
+    const headers = ['ID', 'Hành Động', 'Mã Thẻ', 'Thời Gian'];
     const rows = filteredLogs.map((l) => [
       l.id,
       `"${l.action || ''}"`,
@@ -61,16 +60,23 @@ export default function HistoryTab({ logs = [], onRefreshLogs, loadingLogs = fal
   const getMethodBadge = (log) => {
     const action = log.action || '';
     if (log.rfid_uid || action.includes('RFID') || action.includes('thẻ')) {
-      return { label: 'Thẻ RFID', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+      return { label: 'Thẻ từ', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
     }
     if (action.includes('PIR') || action.includes('Auto') || action.includes('Tự động')) {
-      return { label: 'Cảm Biến PIR', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+      return { label: 'Tự động', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
     }
     if (action.includes('LOCK') || action.includes('Phong tỏa') || action.includes('Cảnh báo')) {
-      return { label: 'Phong Tỏa An Ninh', color: 'bg-rose-50 text-rose-700 border-rose-200' };
+      return { label: 'Khóa Hệ Thống', color: 'bg-rose-50 text-rose-700 border-rose-200' };
     }
     return { label: 'Từ xa / Web', color: 'bg-blue-50 text-blue-700 border-blue-200' };
   };
+
+  const formatAction = (action = '') => action
+    .replace(/ESP32/gi, 'khóa cửa')
+    .replace(/\bPIR\b/gi, 'tự động')
+    .replace(/\bRFID\b/gi, 'thẻ từ')
+    .replace(/RC522/gi, 'bộ đọc thẻ')
+    .replace(/\bNode\b/gi, 'thiết bị');
 
   return (
     <div className="space-y-4 w-full h-full flex flex-col justify-between select-none text-slate-800">
@@ -79,13 +85,13 @@ export default function HistoryTab({ logs = [], onRefreshLogs, loadingLogs = fal
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <span className="text-xs font-bold text-blue-600 tracking-wider uppercase">
-            Cơ Sở Dữ Liệu MySQL • Bảng AccessLogs
+            LỊCH SỬ HOẠT ĐỘNG
           </span>
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-800 tracking-tight">
             Nhật Ký Truy Cập
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Bản ghi chi tiết các sự kiện mở cửa, quẹt thẻ RFID và lệnh điều khiển từ xa
+            Các lần mở cửa bằng bàn phím, thẻ từ hoặc ứng dụng
           </p>
         </div>
 
@@ -127,7 +133,7 @@ export default function HistoryTab({ logs = [], onRefreshLogs, loadingLogs = fal
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm kiếm theo hành động hoặc mã thẻ RFID..."
+            placeholder="Tìm kiếm theo hoạt động hoặc mã thẻ..."
             className="w-full pl-9 pr-4 py-2 bg-white rounded-xl border border-slate-200 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
           />
         </div>
@@ -136,7 +142,7 @@ export default function HistoryTab({ logs = [], onRefreshLogs, loadingLogs = fal
         <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
           {[
             { id: 'ALL', label: 'Tất cả' },
-            { id: 'RFID', label: 'Thẻ RFID' },
+            { id: 'RFID', label: 'Thẻ từ' },
             { id: 'APP', label: 'Từ xa / Web' },
             { id: 'SECURITY', label: 'Cảnh báo' },
           ].map((pill) => (
@@ -202,16 +208,14 @@ export default function HistoryTab({ logs = [], onRefreshLogs, loadingLogs = fal
                         <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
                           {log.rfid_uid ? (
                             <Fingerprint className="w-4 h-4" />
-                          ) : log.action?.includes('PIR') ? (
-                            <Radio className="w-4 h-4" />
                           ) : (
                             <Smartphone className="w-4 h-4" />
                           )}
                         </div>
-                        <span className="font-bold text-slate-800">{log.action}</span>
+                        <span className="font-bold text-slate-800">{formatAction(log.action)}</span>
                       </td>
 
-                      {/* Cột 2: Mã Thẻ (RFID UID) */}
+                      {/* Cột 2: Mã thẻ */}
                       <td className="py-2.5 px-4 font-mono text-slate-600">
                         {log.rfid_uid ? (
                           <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 font-bold text-[11px] border border-slate-200">
@@ -244,7 +248,7 @@ export default function HistoryTab({ logs = [], onRefreshLogs, loadingLogs = fal
         {/* Table Footer */}
         <div className="py-2.5 px-4 bg-slate-50/80 border-t border-slate-100 text-slate-400 text-[11px] flex items-center justify-between">
           <span>Đang hiển thị {filteredLogs.length} trên tổng số {logs.length} bản ghi</span>
-          <span className="font-semibold text-slate-600">Đồng bộ MySQL thời gian thực</span>
+          <span className="font-semibold text-slate-600">Nhật ký được cập nhật thường xuyên</span>
         </div>
       </div>
 

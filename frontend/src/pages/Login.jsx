@@ -109,7 +109,7 @@ export default function Login({ onLoginSuccess }) {
             className="w-16 h-16 rounded-2xl bg-white shadow-md p-1.5 flex items-center justify-center border border-slate-100"
           >
             <img
-              src="/logo.jpg"
+              src="/logo.svg"
               alt="Smart Lock Logo"
               className="w-full h-full object-contain rounded-xl"
             />
@@ -117,7 +117,7 @@ export default function Login({ onLoginSuccess }) {
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100 text-[11px] font-bold uppercase tracking-wider mb-1">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Khóa Thông Minh ESP32</span>
+              <span>Khóa Thông Minh</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">
               {isRegister ? 'Đăng Ký Tài Khoản' : 'Chào Mừng Trở Lại'}

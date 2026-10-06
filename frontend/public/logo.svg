@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <defs>
+    <radialGradient id="disc" cx="0" cy="0" r="1" gradientTransform="matrix(0 128 -128 0 128 128)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#102b35"/><stop offset=".72" stop-color="#07151c"/><stop offset="1" stop-color="#03080c"/>
+    </radialGradient>
+    <linearGradient id="edge" x1="30" x2="230" y1="32" y2="224" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d8ffff"/><stop offset=".45" stop-color="#17eaff"/><stop offset="1" stop-color="#3daaff"/>
+    </linearGradient>
+    <g id="traces" stroke="#39dcf0" stroke-linecap="round" stroke-linejoin="round" opacity=".8">
+      <path d="M128 28v33l-18 18v24M150 34v24l16 16v28M58 70h26l15 15v15M198 70h-26l-15 15v15M43 103h39l11 11M213 103h-39l-11 11M40 151h39l14-14M216 151h-39l-14-14M58 185h24l18-18v-12M198 185h-24l-18-18v-12M106 222v-25l12-12v-9M150 222v-25l-12-12v-9"/>
+      <path d="M70 50v18m116-18v18M33 126h43m104 0h43M70 206v-14m116 14v-14M128 24v-8m0 224v-10"/>
+      <circle cx="70" cy="48" r="3"/><circle cx="186" cy="48" r="3"/><circle cx="31" cy="126" r="3"/><circle cx="225" cy="126" r="3"/><circle cx="70" cy="208" r="3"/><circle cx="186" cy="208" r="3"/><circle cx="128" cy="14" r="3"/><circle cx="128" cy="242" r="3"/>
+      <circle cx="109" cy="103" r="2"/><circle cx="147" cy="103" r="2"/><circle cx="93" cy="114" r="2"/><circle cx="163" cy="114" r="2"/><circle cx="93" cy="142" r="2"/><circle cx="163" cy="142" r="2"/><circle cx="106" cy="155" r="2"/><circle cx="150" cy="155" r="2"/>
+    </g>
+  </defs>
+  <circle cx="128" cy="128" r="124" fill="#020609" stroke="#5d6c75" stroke-width="4"/>
+  <circle cx="128" cy="128" r="116" fill="url(#disc)" stroke="url(#edge)" stroke-width="3"/>
+  <circle cx="128" cy="128" r="108" stroke="#25d8eb" stroke-width="1" opacity=".55"/>
+  <use href="#traces"/>
+  <circle cx="128" cy="128" r="48" fill="#06131a" stroke="#27e5f3" stroke-width="2.5"/>
+  <path d="M128 91 158 108v36l-30 18-30-18v-36l30-17Z" stroke="#74f7ff" stroke-width="2" opacity=".8"/>
+  <g stroke="#42f0f8" stroke-linecap="round" stroke-width="4">
+    <path d="M107 132v-6a21 21 0 0 1 42 0v6M114 139v-13a14 14 0 0 1 28 0v9M121 143v-17a7 7 0 0 1 14 0v15M128 143v-14"/>
+    <path d="M102 126a26 26 0 0 1 52 0v3" stroke-width="2.5"/>
+  </g>
+  <text x="128" y="188" text-anchor="middle" fill="#8afaff" font-family="Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="1.2">SMART LOCK</text>
+</svg>

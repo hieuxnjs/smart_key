@@ -39,7 +39,7 @@ export default function RfidTab({ onOpenDoor }) {
   const handleAddCard = (e) => {
     e.preventDefault();
     if (!newCardName.trim() || !newCardUid.trim()) {
-      toast.error('Vui lòng nhập đầy đủ tên chủ thẻ và mã thẻ UID');
+      toast.error('Vui lòng nhập tên người dùng thẻ và mã thẻ.');
       return;
     }
 
@@ -47,7 +47,7 @@ export default function RfidTab({ onOpenDoor }) {
 
     // Check duplicate
     if (cards.some((c) => c.uid === cleanUid)) {
-      toast.error(`Mã thẻ UID ${cleanUid} đã tồn tại trong danh sách`);
+      toast.error(`Mã thẻ ${cleanUid} đã có trong danh sách.`);
       return;
     }
 
@@ -63,7 +63,7 @@ export default function RfidTab({ onOpenDoor }) {
     saveCards([newEntry, ...cards]);
     setNewCardName('');
     setNewCardUid('');
-    toast.success(`Đã đăng ký thẻ RFID [${newEntry.uid}] thành công!`, { icon: '💳' });
+    toast.success(`Đã thêm thẻ từ [${newEntry.uid}] thành công!`, { icon: '💳' });
   };
 
   const handleToggleStatus = (id) => {
@@ -101,7 +101,7 @@ export default function RfidTab({ onOpenDoor }) {
 
     setSimulating(true);
     try {
-      toast.loading(`Đang mô phỏng quẹt thẻ RFID [${card.uid}]...`, { id: 'rfid-swipe' });
+      toast.loading(`Đang kiểm tra thẻ [${card.uid}]...`, { id: 'rfid-swipe' });
       if (onOpenDoor) {
         await onOpenDoor();
       }
@@ -122,10 +122,10 @@ export default function RfidTab({ onOpenDoor }) {
           Quản Trị Thẻ Thông Minh
         </span>
         <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-800 tracking-tight">
-          Quản Lý Thẻ RFID
+          Quản Lý Thẻ Từ
         </h2>
         <p className="text-xs text-slate-400 mt-0.5">
-          Cấp quyền thẻ từ RFID RC522, kiểm soát mở khóa và mô phỏng quẹt thẻ thử nghiệm
+          Cấp quyền mở cửa bằng thẻ từ và kiểm tra thẻ đã đăng ký
         </p>
       </div>
 
@@ -139,9 +139,9 @@ export default function RfidTab({ onOpenDoor }) {
               <div className="p-1.5 rounded-lg bg-blue-100 text-blue-600">
                 <Plus className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-bold text-slate-800">Thêm Thẻ RFID Mới</h3>
+              <h3 className="text-sm font-bold text-slate-800">Thêm Thẻ Từ Mới</h3>
             </div>
-            <p className="text-xs text-slate-400">Đăng ký thẻ Mifare 13.56MHz vào hệ thống</p>
+            <p className="text-xs text-slate-400">Đăng ký thẻ để mở cửa</p>
           </div>
 
           <form onSubmit={handleAddCard} className="space-y-2.5">
@@ -160,7 +160,7 @@ export default function RfidTab({ onOpenDoor }) {
 
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">
-                Mã Thẻ (UID Hex)
+                Mã Thẻ
               </label>
               <input
                 type="text"
@@ -200,7 +200,7 @@ export default function RfidTab({ onOpenDoor }) {
           {/* Hộp thông tin phụ */}
           <div className="p-2.5 bg-blue-50/80 rounded-xl border border-blue-100 text-[11px] text-blue-700 flex items-center gap-2">
             <Radio className="w-4 h-4 text-blue-600 flex-shrink-0" />
-            <span>Mã UID sẽ được gửi tới ESP32 qua MQTT để cho phép mở cửa khi quẹt.</span>
+            <span>Thẻ đã đăng ký có thể dùng để mở cửa.</span>
           </div>
         </div>
 
@@ -229,11 +229,11 @@ export default function RfidTab({ onOpenDoor }) {
                 <div className="space-y-0.5">
                   <h4 className="text-xs font-bold text-slate-800">Chưa có dữ liệu</h4>
                   <p className="text-[11px] text-slate-400 max-w-[260px] leading-relaxed">
-                    Chưa có thẻ RFID nào được ghi nhận. Hãy quẹt thẻ hoặc dùng form bên cạnh để đăng ký thẻ mới.
+                    Chưa có thẻ nào được ghi nhận. Dùng biểu mẫu bên cạnh để thêm thẻ mới.
                   </p>
                 </div>
                 <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
-                  Hệ thống sẵn sàng kết nối RC522
+                  Sẵn sàng thêm thẻ
                 </span>
               </div>
             ) : (
@@ -285,7 +285,7 @@ export default function RfidTab({ onOpenDoor }) {
                           </div>
                         )}
                         <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5 font-mono">
-                          <span>Mã UID: <strong className="text-slate-700">{card.uid}</strong></span>
+                          <span>Mã thẻ: <strong className="text-slate-700">{card.uid}</strong></span>
                           <span>•</span>
                           <span className="font-sans text-slate-500">{card.role}</span>
                         </div>

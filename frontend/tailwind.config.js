@@ -15,9 +15,14 @@ export default {
           '0%, 100%': { backgroundPosition: '0% 50%' },
           '50%': { backgroundPosition: '100% 50%' },
         },
+        fadeIn: {
+          from: { opacity: '0', transform: 'translateY(6px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
       },
       animation: {
         gradient: 'gradient 15s ease infinite',
+        'fade-in': 'fadeIn 400ms ease-out both',
       },
       colors: {
         brand: {

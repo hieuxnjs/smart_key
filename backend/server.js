@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const mqtt = require("mqtt");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 // Lấy toàn bộ model từ index.js
 const {
@@ -10,11 +11,12 @@ const {
   User,
   AccessLog,
   Setting,
+  User,
   initSetting,
 } = require("./models");
 
 const authRoutes = require("./routes/auth");
-const { verifyToken } = require("./middleware/auth");
+const { verifyToken, JWT_SECRET } = require("./middleware/auth");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -32,7 +34,24 @@ app.use(express.json());
 // In-memory state tracking
 let isMqttConnected = false;
 let doorOpenState = false;
+let doorState = 0;
+let buzzerActive = false;
 let lastDoorEventTime = new Date();
+
+function parseDeviceBoolean(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const state = value.trim().toLowerCase();
+    return ["1", "true", "on", "active", "locked", "kêu", "beeping", "sounding"].includes(state)
+      || state.startsWith("on_")
+      || state.endsWith("_on")
+      || state.includes("active")
+      || state.includes("beep")
+      || state.includes("sound");
+  }
+  return false;
+}
 
 // ----------------------------------------------------
 // Khởi tạo MQTT Client kết nối HiveMQ Broker
@@ -57,6 +76,16 @@ mqttClient.on("connect", () => {
     } else {
       console.log(`[MQTT] Subscribed to topic: ${TOPIC_STATUS}`);
     }
+  });
+
+  Setting.findByPk(1).then((setting) => {
+    mqttClient.publish(
+      "kma_lock/config",
+      JSON.stringify({ auto_mode: false, delay: setting?.auto_close_delay || 10 }),
+      { qos: 1 },
+    );
+  }).catch((error) => {
+    console.warn("[MQTT] Could not disable automatic opening:", error.message);
   });
 });
 
@@ -116,16 +145,32 @@ mqttClient.on("message", async (topic, payload) => {
     const rfidUid = data.uid || data.rfid || null;
     const eventTime = data.timestamp ? new Date(data.timestamp) : new Date();
 
-    if (
+    const reportedDoorState = Number(data.door_state);
+    if (data.door_state !== undefined && data.door_state !== null && [0, 1, 2].includes(reportedDoorState)) {
+      doorState = reportedDoorState;
+      doorOpenState = doorState === 1;
+      lastDoorEventTime = eventTime;
+    } else if (
       action.includes("DOOR_OPEN") ||
       action.includes("RFID_OPEN") ||
       action.includes("PIN_OPEN")
     ) {
       doorOpenState = true;
+      doorState = 1;
       lastDoorEventTime = eventTime;
     } else if (action.includes("DOOR_CLOSE")) {
       doorOpenState = false;
+      doorState = 0;
       lastDoorEventTime = eventTime;
+    }
+
+    const reportedBuzzer = data.buzzer_state ?? data.buzzer_active ?? data.buzzer;
+    if (typeof reportedBuzzer !== "undefined") {
+      buzzerActive = parseDeviceBoolean(reportedBuzzer);
+    }
+
+    if (typeof data.system_locked !== "undefined") {
+      await Setting.upsert({ id: 1, system_locked: parseDeviceBoolean(data.system_locked) });
     }
 
     await AccessLog.create({
@@ -161,8 +206,9 @@ app.get("/api/status", verifyToken, async (req, res) => {
       online: true,
       mqttConnected: isMqttConnected,
       doorOpen: doorOpenState,
+      doorState,
+      buzzerActive,
       systemLocked: isLocked,
-      autoModeEnabled: setting ? setting.auto_mode_enabled : false,
       autoCloseDelay: setting ? setting.auto_close_delay : 10,
       lastEventTime: lastDoorEventTime,
       timestamp: new Date().toISOString(),
@@ -184,7 +230,6 @@ app.get("/api/settings", verifyToken, async (req, res) => {
         id: 1,
         system_locked: setting ? setting.system_locked : false,
         hasPassword: Boolean(setting && setting.current_password),
-        auto_mode_enabled: setting ? setting.auto_mode_enabled : false,
         auto_close_delay: setting ? setting.auto_close_delay : 10,
       },
     });
@@ -231,6 +276,72 @@ app.delete("/api/logs", verifyToken, async (req, res) => {
       success: false,
       error: "Không thể xóa nhật ký: " + error.message,
     });
+  }
+});
+
+app.post("/api/control/command", verifyToken, async (req, res) => {
+  try {
+    const { command } = req.body;
+    const allowedCommands = [
+      "OPEN_DOOR",
+      "CLOSE_DOOR",
+      "LOCK_SYSTEM",
+      "UNLOCK_SYSTEM",
+      "BUZZER_ON",
+      "BUZZER_OFF",
+    ];
+    if (!allowedCommands.includes(command)) {
+      return res.status(400).json({ success: false, error: "Lệnh điều khiển không hợp lệ." });
+    }
+
+    const setting = await Setting.findByPk(1);
+    const systemLocked = Boolean(setting?.system_locked);
+    if (command === "OPEN_DOOR" && systemLocked) {
+      return res.status(403).json({
+        success: false,
+        error: "Khóa hệ thống đang bật. Hãy mở khóa hệ thống trước.",
+      });
+    }
+    if (!isMqttConnected) {
+      return res.status(503).json({ success: false, error: "Khóa cửa hiện không kết nối. Vui lòng thử lại sau." });
+    }
+
+    await publishMqtt(TOPIC_CONTROL, command);
+
+    let nextSystemLocked = systemLocked;
+    if (command === "LOCK_SYSTEM" || command === "UNLOCK_SYSTEM") {
+      nextSystemLocked = command === "LOCK_SYSTEM";
+      await Setting.upsert({ id: 1, system_locked: nextSystemLocked });
+    }
+    if (command === "BUZZER_ON" || command === "BUZZER_OFF") {
+      buzzerActive = command === "BUZZER_ON";
+    }
+
+    const actionLabels = {
+      OPEN_DOOR: "Mở cửa từ bảng điều khiển",
+      CLOSE_DOOR: "Đóng cửa từ bảng điều khiển",
+      LOCK_SYSTEM: "Đã khóa quyền truy cập",
+      UNLOCK_SYSTEM: "Đã mở lại quyền truy cập",
+      BUZZER_ON: "Đã bật còi báo động",
+      BUZZER_OFF: "Đã tắt còi báo động",
+    };
+    const log = await AccessLog.create({
+      rfid_uid: null,
+      action: actionLabels[command],
+      timestamp: new Date(),
+    });
+
+    res.json({
+      success: true,
+      command,
+      systemLocked: nextSystemLocked,
+      buzzerActive,
+      message: actionLabels[command],
+      log,
+    });
+  } catch (error) {
+    console.error("[API Error] /api/control/command:", error.message);
+    res.status(500).json({ success: false, error: "Không thể gửi lệnh tới khóa cửa." });
   }
 });
 
@@ -368,12 +479,10 @@ app.post("/api/control/unlock", verifyToken, async (req, res) => {
 
 app.post("/api/settings", verifyToken, async (req, res) => {
   try {
-    const { auto_mode_enabled, auto_close_delay } = req.body;
+    const { auto_close_delay } = req.body;
     const updatePayload = {};
 
-    if (typeof auto_mode_enabled !== "undefined") {
-      updatePayload.auto_mode_enabled = Boolean(auto_mode_enabled);
-    }
+    updatePayload.auto_mode_enabled = false;
     if (typeof auto_close_delay !== "undefined") {
       updatePayload.auto_close_delay = Math.max(
         1,
@@ -401,8 +510,8 @@ app.post("/api/settings", verifyToken, async (req, res) => {
 
     res.json({
       success: true,
-      message: "Cập nhật cấu hình cảm biến PIR thành công!",
-      data: updated,
+      message: "Đã lưu thời gian tự đóng cửa.",
+      data: { auto_close_delay: updated.auto_close_delay },
     });
   } catch (error) {
     console.error("[API Error] /api/settings:", error.message);
@@ -415,12 +524,27 @@ app.post("/api/settings", verifyToken, async (req, res) => {
 
 app.post("/api/settings/password", verifyToken, async (req, res) => {
   try {
-    const { newPassword } = req.body;
+    const { oldPassword, newPassword } = req.body;
 
-    if (!newPassword || newPassword.toString().trim().length < 4) {
+    if (!oldPassword || !newPassword) {
       return res.status(400).json({
         success: false,
-        error: "Mã PIN bàn phím phải có ít nhất 4 chữ số.",
+        error: "Vui lòng nhập mật khẩu cũ và mật khẩu mới.",
+      });
+    }
+
+    const setting = await Setting.findByPk(1);
+    if (!setting || oldPassword.toString().trim() !== setting.current_password) {
+      return res.status(400).json({
+        success: false,
+        error: "Mật khẩu cũ không chính xác.",
+      });
+    }
+
+    if (!/^\d{4,8}$/.test(newPassword.toString().trim())) {
+      return res.status(400).json({
+        success: false,
+        error: "Mật khẩu mới phải gồm từ 4 đến 8 chữ số.",
       });
     }
 
@@ -446,12 +570,48 @@ app.post("/api/settings/password", verifyToken, async (req, res) => {
       timestamp: new Date(),
     });
 
-    res.json({ success: true, message: "Đã đổi mã PIN mở cửa thành công!" });
+    res.json({ success: true, message: "Đã cập nhật mật khẩu mở cửa thành công!" });
   } catch (error) {
     console.error("[API Error] /api/settings/password:", error.message);
     res
       .status(500)
       .json({ success: false, error: "Lỗi cập nhật mã PIN: " + error.message });
+  }
+});
+
+app.post("/api/settings/password/reset", verifyToken, async (req, res) => {
+  try {
+    const { admin_pass, pin } = req.body;
+    const user = await User.findByPk(req.user.id);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Chỉ quản trị viên mới được đặt lại mật khẩu khóa.",
+      });
+    }
+    if (!admin_pass || !/^\d{4}$/.test((pin || "").toString())) {
+      return res.status(400).json({ success: false, error: "Mã PIN mới phải gồm đúng 4 chữ số." });
+    }
+    if (!isMqttConnected) {
+      return res.status(503).json({ success: false, error: "Khóa cửa hiện không kết nối. Vui lòng thử lại sau." });
+    }
+
+    const pinString = pin.toString();
+    await publishMqtt(
+      "kma_lock/config",
+      JSON.stringify({ admin_pass: admin_pass.toString(), pin: pinString }),
+    );
+    await Setting.upsert({ id: 1, current_password: pinString });
+    await AccessLog.create({
+      rfid_uid: null,
+      action: "Quản trị viên đặt lại mật khẩu khóa",
+      timestamp: new Date(),
+    });
+
+    res.json({ success: true, message: "Đã đặt lại mật khẩu khóa thành công." });
+  } catch (error) {
+    console.error("[API Error] PIN reset:", error.message);
+    res.status(500).json({ success: false, error: "Không thể đặt lại mật khẩu khóa." });
   }
 });
 
@@ -490,6 +650,12 @@ async function startServer() {
     console.log("[MySQL] Models synchronized with MySQL schema.");
 
     await initSetting();
+    await Setting.update({ auto_mode_enabled: false }, { where: { id: 1 } });
+    const setting = await Setting.findByPk(1);
+    await publishMqtt(
+      "kma_lock/config",
+      JSON.stringify({ auto_mode: false, delay: setting?.auto_close_delay || 10 }),
+    );
     console.log("[MySQL] Default system setting initialized.");
 
     await initAdminUser();

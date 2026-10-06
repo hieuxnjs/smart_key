@@ -6,7 +6,6 @@ import {
   KeyRound,
   ShieldAlert,
   Loader2,
-  Radio,
 } from 'lucide-react';
 
 export default function CenterControl({
@@ -15,7 +14,6 @@ export default function CenterControl({
   onOpenDoor,
   actionLoading = false,
   mqttConnected = true,
-  autoModeEnabled = false,
 }) {
   return (
     <div className="flex flex-col items-center justify-center select-none w-full py-2">
@@ -28,12 +26,12 @@ export default function CenterControl({
               mqttConnected ? 'bg-blue-600 animate-pulse' : 'bg-amber-400'
             }`}
           />
-          <span>{mqttConnected ? 'HiveMQ: Đang Kết Nối' : 'Đang kết nối Broker...'}</span>
+          <span>{mqttConnected ? 'Khóa đang kết nối' : 'Đang kết nối với khóa...'}</span>
         </div>
         <h2 className="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight">
           Lối Vào Chính
         </h2>
-        <p className="text-xs text-slate-400 font-medium">Node Khóa Cửa ESP32 • Phòng Khách</p>
+        <p className="text-xs text-slate-400 font-medium">Khóa Cửa Chính - Phòng Khách</p>
       </div>
 
       {/* Main Circular Dial Area (Compact & Beautiful Neumorphic) */}
