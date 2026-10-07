@@ -30,6 +30,7 @@ export default function SecurityTab({
   actionLoading = false,
   logs = [],
   onToggleBuzzer,
+  deviceOnline = false,
 }) {
   const securityLogs = Array.isArray(logs) ? logs.slice(0, 30) : [];
 
@@ -83,9 +84,13 @@ export default function SecurityTab({
       {/* 1. Header Trang */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-[11px] font-bold tracking-wider uppercase mb-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
-            <span>Quản Lý Khóa Cửa Thông Minh</span>
+          <div className={`inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full border text-[11px] font-bold tracking-wider uppercase mb-1 ${
+            deviceOnline
+              ? 'bg-blue-50 border-blue-100 text-blue-700'
+              : 'bg-rose-50 border-rose-200 text-rose-700'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${deviceOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+            <span>{deviceOnline ? 'Khóa Đang Trực Tuyến' : 'Khóa Đang Ngoại Tuyến'}</span>
           </div>
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">
             Bảng Điều Khiển An Ninh

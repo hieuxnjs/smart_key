@@ -52,6 +52,7 @@ export default function Dashboard() {
   const [buzzerActive, setBuzzerActive] = useState(false);
   const [systemLocked, setSystemLocked] = useState(false);
   const [mqttConnected, setMqttConnected] = useState(true);
+  const [deviceOnline, setDeviceOnline] = useState(false);
   const [autoCloseDelay, setAutoCloseDelay] = useState(10);
   const [logs, setLogs] = useState([]);
   
@@ -98,6 +99,7 @@ export default function Dashboard() {
         setBuzzerActive(Boolean(res.data.buzzerActive));
         setSystemLocked(Boolean(res.data.systemLocked));
         setMqttConnected(Boolean(res.data.mqttConnected));
+        setDeviceOnline(Boolean(res.data.deviceOnline ?? res.data.online));
         if (typeof res.data.autoCloseDelay === 'number') setAutoCloseDelay(res.data.autoCloseDelay);
       }
     } catch (err) {
@@ -181,6 +183,11 @@ export default function Dashboard() {
 
   // Remote Door Open
   const handleOpenDoor = async () => {
+    if (!deviceOnline) {
+      toast.error('Hệ thống đang ở chế độ offline không thể thao tác', { icon: '⚠️' });
+      return;
+    }
+
     if (systemLocked) {
       toast.error('Hệ thống đang khóa quyền truy cập. Hãy mở lại quyền trước.', { icon: '⚠️' });
       return;
@@ -206,6 +213,11 @@ export default function Dashboard() {
 
   // Toggle Lockdown
   const handleToggleSystemLock = async () => {
+    if (!deviceOnline) {
+      toast.error('Hệ thống đang ở chế độ offline không thể thao tác', { icon: '⚠️' });
+      return;
+    }
+
     setActionLoading(true);
     try {
       const res = await axios.post(`${API_BASE}/control/toggle-system-lock`, {}, { headers: getAuthHeaders() });
@@ -228,6 +240,11 @@ export default function Dashboard() {
   };
 
   const handleDeviceCommand = async (command) => {
+    if (!deviceOnline) {
+      toast.error('Hệ thống đang ở chế độ offline không thể thao tác', { icon: '⚠️' });
+      return;
+    }
+
     setActionLoading(true);
     try {
       const res = await axios.post(`${API_BASE}/control/command`, { command }, { headers: getAuthHeaders() });
@@ -247,6 +264,11 @@ export default function Dashboard() {
   };
 
   const handleResetLockPassword = async (webPassword, newPin) => {
+    if (!deviceOnline) {
+      toast.error('Hệ thống đang ở chế độ offline không thể thao tác', { icon: '⚠️' });
+      return false;
+    }
+
     try {
       const res = await axios.post(
         `${API_BASE}/settings/password/reset`,
@@ -264,8 +286,13 @@ export default function Dashboard() {
 
   // Update PIN
   const handleUpdatePassword = async (oldPassword, newPassword) => {
-    if (!oldPassword || !/^\d{4,8}$/.test(newPassword || '')) {
-      toast.error('Vui lòng nhập mật khẩu cũ và mật khẩu mới gồm 4-8 chữ số.');
+    if (!deviceOnline) {
+      toast.error('Hệ thống đang ở chế độ offline không thể thao tác', { icon: '⚠️' });
+      return false;
+    }
+
+    if (!oldPassword || !/^\d{4}$/.test(newPassword || '')) {
+      toast.error('Vui lòng nhập mật khẩu cũ và mật khẩu mới gồm đúng 4 chữ số.');
       return false;
     }
 
@@ -412,6 +439,15 @@ export default function Dashboard() {
 
               {/* Action Buttons Header */}
               <div className="flex items-center gap-2">
+                <div className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${
+                  deviceOnline
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${deviceOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                  <span>{deviceOnline ? 'Khóa Trực Tuyến' : 'Khóa Ngoại Tuyến'}</span>
+                </div>
+
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
@@ -527,7 +563,8 @@ export default function Dashboard() {
                     onOpenDoor={handleOpenDoor}
                     actionLoading={actionLoading}
                     mqttConnected={mqttConnected}
-                    />
+                    deviceOnline={deviceOnline}
+                  />
 
                   {/* Nút thao tác an ninh ngay dưới CenterControl */}
                   <div className="w-full flex items-center justify-center gap-3 pt-1 border-t border-slate-200/60">
@@ -708,7 +745,17 @@ export default function Dashboard() {
                       {submittingPin ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                       <span>Lưu Mật Khẩu</span>
                     </button>
-                    <button type="button" onClick={() => setIsPasswordResetOpen(true)} className="w-full text-center text-[11px] font-semibold text-blue-600 hover:text-blue-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!deviceOnline) {
+                          toast.error('Hệ thống đang ở chế độ offline không thể thao tác', { icon: '⚠️' });
+                          return;
+                        }
+                        setIsPasswordResetOpen(true);
+                      }}
+                      className="w-full text-center text-[11px] font-semibold text-blue-600 hover:text-blue-800"
+                    >
                       Quên mật khẩu khóa?
                     </button>
                   </form>
@@ -732,6 +779,7 @@ export default function Dashboard() {
               onToggleBuzzer={(enabled) => handleDeviceCommand(enabled ? 'BUZZER_ON' : 'BUZZER_OFF')}
               actionLoading={actionLoading}
               logs={logs}
+              deviceOnline={deviceOnline}
             />
           </motion.div>
         )}
@@ -746,14 +794,27 @@ export default function Dashboard() {
         {/* TAB 4: QUẢN LÝ THẺ RFID */}
         {activeTab === 'rfid' && (
           <motion.div key="rfid" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="flex-1 flex flex-col">
-            <RfidTab onOpenDoor={handleOpenDoor} />
+            <RfidTab onOpenDoor={handleOpenDoor} deviceOnline={deviceOnline} />
           </motion.div>
         )}
 
         {/* TAB 5: CẤU HÌNH HỆ THỐNG */}
         {activeTab === 'settings' && (
           <motion.div key="settings" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="flex-1 flex flex-col">
-            <SettingsTab onUpdatePassword={handleUpdatePassword} onForgotPassword={() => setIsPasswordResetOpen(true)} mqttConnected={mqttConnected} onClearLogs={handleClearLogs} clearingLogs={clearingLogs} />
+            <SettingsTab
+              onUpdatePassword={handleUpdatePassword}
+              onForgotPassword={() => {
+                if (!deviceOnline) {
+                  toast.error('Hệ thống đang ở chế độ offline không thể thao tác', { icon: '⚠️' });
+                  return;
+                }
+                setIsPasswordResetOpen(true);
+              }}
+              mqttConnected={mqttConnected}
+              deviceOnline={deviceOnline}
+              onClearLogs={handleClearLogs}
+              clearingLogs={clearingLogs}
+            />
           </motion.div>
         )}
 

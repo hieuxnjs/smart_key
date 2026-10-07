@@ -14,19 +14,24 @@ export default function CenterControl({
   onOpenDoor,
   actionLoading = false,
   mqttConnected = true,
+  deviceOnline = false,
 }) {
   return (
     <div className="flex flex-col items-center justify-center select-none w-full py-2">
       
       {/* Top Header of Center Dial */}
       <div className="text-center space-y-1 mb-2">
-        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 text-[11px] font-semibold shadow-xs">
+        <div className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-semibold shadow-xs ${
+          deviceOnline
+            ? 'bg-blue-50 text-blue-700 border border-blue-100'
+            : 'bg-rose-50 text-rose-700 border border-rose-200'
+        }`}>
           <span
             className={`w-2 h-2 rounded-full ${
-              mqttConnected ? 'bg-blue-600 animate-pulse' : 'bg-amber-400'
+              deviceOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
             }`}
           />
-          <span>{mqttConnected ? 'Khóa đang kết nối' : 'Đang kết nối với khóa...'}</span>
+          <span>{deviceOnline ? 'Khóa đang kết nối' : 'Khóa đang ngoại tuyến'}</span>
         </div>
         <h2 className="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight">
           Lối Vào Chính
@@ -119,14 +124,18 @@ export default function CenterControl({
                 <div className="text-center z-10 px-1">
                   <span
                     className={`block text-[11px] sm:text-xs font-black tracking-wider uppercase ${
-                      systemLocked
+                      !deviceOnline
+                        ? 'text-slate-400'
+                        : systemLocked
                         ? 'text-rose-500'
                         : doorOpen
                         ? 'text-emerald-600'
                         : 'text-slate-800'
                     }`}
                   >
-                    {actionLoading
+                    {!deviceOnline
+                      ? 'NGOẠI TUYẾN'
+                      : actionLoading
                       ? 'ĐANG GỬI...'
                       : systemLocked
                       ? 'HỆ THỐNG KHÓA'
@@ -135,7 +144,9 @@ export default function CenterControl({
                       : 'MỞ CỬA'}
                   </span>
                   <span className="text-[9px] sm:text-[10px] font-semibold text-slate-400 block">
-                    {systemLocked
+                    {!deviceOnline
+                      ? 'Không thể thao tác'
+                      : systemLocked
                       ? 'Đang phong tỏa'
                       : doorOpen
                       ? 'Sắp tự động đóng'

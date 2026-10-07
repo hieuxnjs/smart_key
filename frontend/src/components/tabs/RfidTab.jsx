@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export default function RfidTab({ onOpenDoor }) {
+export default function RfidTab({ onOpenDoor, deviceOnline = false }) {
   const [cards, setCards] = useState(() => {
     try {
       const saved = localStorage.getItem('smartlock_rfid_cards');
@@ -94,6 +94,11 @@ export default function RfidTab({ onOpenDoor }) {
   };
 
   const handleSimulateSwipe = async (card) => {
+    if (!deviceOnline) {
+      toast.error('Hệ thống đang ở chế độ offline không thể thao tác', { icon: '⚠️' });
+      return;
+    }
+
     if (card.status === 'BLOCKED') {
       toast.error(`Từ chối truy cập! Thẻ [${card.uid}] hiện đang bị khóa.`, { icon: '🚫' });
       return;

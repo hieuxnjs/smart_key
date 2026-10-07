@@ -56,7 +56,7 @@ const Setting = sequelize.define(
     current_password: {
       type: DataTypes.STRING(128),
       allowNull: true,
-      defaultValue: "123456",
+      defaultValue: "1234",
     },
     auto_mode_enabled: {
       type: DataTypes.BOOLEAN,
@@ -82,7 +82,7 @@ async function initSetting() {
     defaults: {
       id: 1,
       system_locked: false,
-      current_password: "123456",
+      current_password: "1234",
       auto_mode_enabled: false,
       auto_close_delay: 10,
     },

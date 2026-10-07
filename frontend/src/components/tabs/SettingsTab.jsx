@@ -16,6 +16,7 @@ export default function SettingsTab({
   onUpdatePassword,
   onForgotPassword,
   mqttConnected = true,
+  deviceOnline = false,
   onClearLogs,
   clearingLogs = false,
 }) {
@@ -27,8 +28,13 @@ export default function SettingsTab({
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
-    if (!oldPin || !/^\d{4,8}$/.test(newPin)) {
-      toast.error('Vui lòng nhập mật khẩu cũ và mật khẩu mới gồm 4-8 chữ số.');
+    if (!deviceOnline) {
+      toast.error('Hệ thống đang ở chế độ offline không thể thao tác', { icon: '⚠️' });
+      return;
+    }
+
+    if (!oldPin || !/^\d{4}$/.test(newPin)) {
+      toast.error('Vui lòng nhập mật khẩu cũ và mật khẩu mới gồm đúng 4 chữ số.');
       return;
     }
     setSubmittingPin(true);
@@ -85,10 +91,10 @@ export default function SettingsTab({
               <div className="space-y-2.5">
                 <input
                   type={showPin ? 'text' : 'password'}
-                  maxLength={8}
+                  maxLength={4}
                   value={oldPin}
-                  onChange={(e) => setOldPin(e.target.value)}
-                  placeholder="Nhập mật khẩu cũ"
+                  onChange={(e) => setOldPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="Nhập mật khẩu cũ (4 số)"
                   aria-label="Nhập mật khẩu cũ"
                   inputMode="numeric"
                   autoComplete="current-password"
@@ -97,10 +103,10 @@ export default function SettingsTab({
                 <div className="relative">
                   <input
                     type={showPin ? 'text' : 'password'}
-                    maxLength={8}
+                    maxLength={4}
                     value={newPin}
-                    onChange={(e) => setNewPin(e.target.value)}
-                    placeholder="Nhập mật khẩu mới (4-8 số)"
+                    onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    placeholder="Nhập mật khẩu mới (4 số)"
                     aria-label="Nhập mật khẩu mới"
                     inputMode="numeric"
                     autoComplete="new-password"
@@ -158,13 +164,13 @@ export default function SettingsTab({
             <div className="space-y-2 text-xs font-medium">
               <div className="p-2.5 bg-white rounded-xl border border-slate-100 flex items-center justify-between">
                 <div>
-                  <p className="font-bold text-slate-800">Khóa cửa</p>
-                  <p className="text-[11px] text-slate-400">Kết nối tới khóa thông minh</p>
+                  <p className="font-bold text-slate-800">Khóa thông minh ESP32</p>
+                  <p className="text-[11px] text-slate-400">Kết nối trực tiếp tới thiết bị</p>
                 </div>
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                  mqttConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                  deviceOnline ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                 }`}>
-                  {mqttConnected ? 'Hoạt Động' : 'Mất Kết Nối'}
+                  {deviceOnline ? 'Trực Tuyến' : 'Ngoại Tuyến'}
                 </span>
               </div>
 

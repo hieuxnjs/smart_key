@@ -32,10 +32,20 @@ app.use(express.json());
 
 // In-memory state tracking
 let isMqttConnected = false;
+let isDeviceOnline = false;
+let lastDeviceSeen = 0;
 let doorOpenState = false;
 let doorState = 0;
 let buzzerActive = false;
 let lastDoorEventTime = new Date();
+
+// Tự động kiểm tra timeout ngoại tuyến (ESP32 không gửi heartbeat trong 35s -> đánh dấu Offline)
+setInterval(() => {
+  if (isDeviceOnline && Date.now() - lastDeviceSeen > 35000) {
+    isDeviceOnline = false;
+    console.warn("[ESP32] Không có tín hiệu trong 35s -> Thiết bị đã Ngoại Tuyến (OFFLINE)");
+  }
+}, 5000);
 
 function parseDeviceBoolean(value) {
   if (typeof value === "boolean") return value;
@@ -140,9 +150,18 @@ mqttClient.on("message", async (topic, payload) => {
       data = { action: rawMessage };
     }
 
-    const action = data.action || data.event || "UNKNOWN_EVENT";
+    const action = data.action || data.event || null;
     const rfidUid = data.uid || data.rfid || null;
     const eventTime = data.timestamp ? new Date(data.timestamp) : new Date();
+
+    // Cập nhật trạng thái trực tuyến của ESP32
+    if (data.online === false || action === "ESP32_OFFLINE" || action === "OFFLINE") {
+      isDeviceOnline = false;
+      console.log("[ESP32] Thiết bị đã ngắt kết nối (OFFLINE)");
+    } else {
+      isDeviceOnline = true;
+      lastDeviceSeen = Date.now();
+    }
 
     const reportedDoorState = Number(data.door_state);
     if (data.door_state !== undefined && data.door_state !== null && [0, 1, 2].includes(reportedDoorState)) {
@@ -150,14 +169,16 @@ mqttClient.on("message", async (topic, payload) => {
       doorOpenState = doorState === 1;
       lastDoorEventTime = eventTime;
     } else if (
-      action.includes("DOOR_OPEN") ||
-      action.includes("RFID_OPEN") ||
-      action.includes("PIN_OPEN")
+      action && (
+        action.includes("DOOR_OPEN") ||
+        action.includes("RFID_OPEN") ||
+        action.includes("PIN_OPEN")
+      )
     ) {
       doorOpenState = true;
       doorState = 1;
       lastDoorEventTime = eventTime;
-    } else if (action.includes("DOOR_CLOSE")) {
+    } else if (action && action.includes("DOOR_CLOSE")) {
       doorOpenState = false;
       doorState = 0;
       lastDoorEventTime = eventTime;
@@ -172,14 +193,17 @@ mqttClient.on("message", async (topic, payload) => {
       await Setting.upsert({ id: 1, system_locked: parseDeviceBoolean(data.system_locked) });
     }
 
-    await AccessLog.create({
-      rfid_uid: rfidUid,
-      action: action,
-      timestamp: eventTime,
-    });
-    console.log(
-      `[MySQL] Logged access event: ${action} (RFID: ${rfidUid || "N/A"})`,
-    );
+    // Chỉ lưu log nếu có sự kiện / hành động cụ thể từ thiết bị (tránh spam UNKNOWN_EVENT khi ESP32 chỉ cập nhật trạng thái)
+    if (action && action !== "UNKNOWN_EVENT" && action !== "ESP32_OFFLINE") {
+      await AccessLog.create({
+        rfid_uid: rfidUid,
+        action: action,
+        timestamp: eventTime,
+      });
+      console.log(
+        `[MySQL] Logged access event: ${action} (RFID: ${rfidUid || "N/A"})`,
+      );
+    }
   } catch (error) {
     console.error(
       "[MQTT Processing Error] Failed to process message:",
@@ -202,7 +226,8 @@ app.get("/api/status", verifyToken, async (req, res) => {
 
     res.json({
       success: true,
-      online: true,
+      online: isDeviceOnline,
+      deviceOnline: isDeviceOnline,
       mqttConnected: isMqttConnected,
       doorOpen: doorOpenState,
       doorState,
@@ -293,6 +318,10 @@ app.post("/api/control/command", verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, error: "Lệnh điều khiển không hợp lệ." });
     }
 
+    if (!isMqttConnected || !isDeviceOnline) {
+      return res.status(503).json({ success: false, error: "Hệ thống đang ở chế độ offline không thể thao tác" });
+    }
+
     const setting = await Setting.findByPk(1);
     const systemLocked = Boolean(setting?.system_locked);
     if (command === "OPEN_DOOR" && systemLocked) {
@@ -300,9 +329,6 @@ app.post("/api/control/command", verifyToken, async (req, res) => {
         success: false,
         error: "Khóa hệ thống đang bật. Hãy mở khóa hệ thống trước.",
       });
-    }
-    if (!isMqttConnected) {
-      return res.status(503).json({ success: false, error: "Khóa cửa hiện không kết nối. Vui lòng thử lại sau." });
     }
 
     await publishMqtt(TOPIC_CONTROL, command);
@@ -346,6 +372,10 @@ app.post("/api/control/command", verifyToken, async (req, res) => {
 
 app.post("/api/control/open", verifyToken, async (req, res) => {
   try {
+    if (!isMqttConnected || !isDeviceOnline) {
+      return res.status(503).json({ success: false, error: "Hệ thống đang ở chế độ offline không thể thao tác" });
+    }
+
     const setting = await Setting.findByPk(1);
     if (setting && setting.system_locked) {
       return res.status(403).json({
@@ -357,13 +387,6 @@ app.post("/api/control/open", verifyToken, async (req, res) => {
 
     doorOpenState = true;
     lastDoorEventTime = new Date();
-
-    const delay = setting?.auto_close_delay
-      ? setting.auto_close_delay * 1000
-      : 5000;
-    setTimeout(() => {
-      doorOpenState = false;
-    }, delay);
 
     await publishMqtt(TOPIC_CONTROL, "OPEN_DOOR");
 
@@ -390,6 +413,10 @@ app.post("/api/control/open", verifyToken, async (req, res) => {
 
 app.post("/api/control/toggle-system-lock", verifyToken, async (req, res) => {
   try {
+    if (!isMqttConnected || !isDeviceOnline) {
+      return res.status(503).json({ success: false, error: "Hệ thống đang ở chế độ offline không thể thao tác" });
+    }
+
     const setting = await Setting.findByPk(1);
     const currentState = setting ? setting.system_locked : false;
     const targetState = !currentState;
@@ -433,6 +460,10 @@ app.post("/api/control/toggle-system-lock", verifyToken, async (req, res) => {
 
 app.post("/api/control/lock", verifyToken, async (req, res) => {
   try {
+    if (!isMqttConnected || !isDeviceOnline) {
+      return res.status(503).json({ success: false, error: "Hệ thống đang ở chế độ offline không thể thao tác" });
+    }
+
     await publishMqtt(TOPIC_CONTROL, "LOCK_SYSTEM");
     await Setting.upsert({ id: 1, system_locked: true });
     await AccessLog.create({
@@ -456,6 +487,10 @@ app.post("/api/control/lock", verifyToken, async (req, res) => {
 
 app.post("/api/control/unlock", verifyToken, async (req, res) => {
   try {
+    if (!isMqttConnected || !isDeviceOnline) {
+      return res.status(503).json({ success: false, error: "Hệ thống đang ở chế độ offline không thể thao tác" });
+    }
+
     await publishMqtt(TOPIC_CONTROL, "UNLOCK_SYSTEM");
     await Setting.upsert({ id: 1, system_locked: false });
     await AccessLog.create({
@@ -478,6 +513,10 @@ app.post("/api/control/unlock", verifyToken, async (req, res) => {
 
 app.post("/api/settings", verifyToken, async (req, res) => {
   try {
+    if (!isMqttConnected || !isDeviceOnline) {
+      return res.status(503).json({ success: false, error: "Hệ thống đang ở chế độ offline không thể thao tác" });
+    }
+
     const { auto_close_delay } = req.body;
     const updatePayload = {};
 
@@ -523,6 +562,10 @@ app.post("/api/settings", verifyToken, async (req, res) => {
 
 app.post("/api/settings/password", verifyToken, async (req, res) => {
   try {
+    if (!isMqttConnected || !isDeviceOnline) {
+      return res.status(503).json({ success: false, error: "Hệ thống đang ở chế độ offline không thể thao tác" });
+    }
+
     const { oldPassword, newPassword } = req.body;
 
     if (!oldPassword || !newPassword) {
@@ -540,10 +583,10 @@ app.post("/api/settings/password", verifyToken, async (req, res) => {
       });
     }
 
-    if (!/^\d{4,8}$/.test(newPassword.toString().trim())) {
+    if (!/^\d{4}$/.test(newPassword.toString().trim())) {
       return res.status(400).json({
         success: false,
-        error: "Mật khẩu mới phải gồm từ 4 đến 8 chữ số.",
+        error: "Mật khẩu mới phải gồm đúng 4 chữ số.",
       });
     }
 
@@ -591,8 +634,17 @@ app.post("/api/settings/password/reset", verifyToken, async (req, res) => {
     if (!admin_pass || !/^\d{4}$/.test((pin || "").toString())) {
       return res.status(400).json({ success: false, error: "Mã PIN mới phải gồm đúng 4 chữ số." });
     }
-    if (!isMqttConnected) {
-      return res.status(503).json({ success: false, error: "Khóa cửa hiện không kết nối. Vui lòng thử lại sau." });
+
+    const isMatch = await bcrypt.compare(admin_pass.toString(), user.password);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        error: "Mật khẩu tài khoản Web Admin không chính xác.",
+      });
+    }
+
+    if (!isMqttConnected || !isDeviceOnline) {
+      return res.status(503).json({ success: false, error: "Hệ thống đang ở chế độ offline không thể thao tác" });
     }
 
     const pinString = pin.toString();
