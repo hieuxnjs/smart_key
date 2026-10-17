@@ -37,7 +37,7 @@ export default function PasswordResetModal({ isOpen, onClose, onReset }) {
             initial={{ opacity: 0, y: 16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl"
+            className="relative w-[94%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto scrollbar-thin rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-2xl"
           >
             <button type="button" onClick={onClose} aria-label="Đóng" className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
               <X className="h-4 w-4" />

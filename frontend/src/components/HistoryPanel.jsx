@@ -14,6 +14,7 @@ import {
   EyeOff,
   Loader2,
   Inbox,
+  ScanFace,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -49,6 +50,22 @@ export default function HistoryPanel({
 
   const getLogMeta = (log) => {
     const action = log.action || '';
+    if (action.includes('Khuôn mặt') || action.includes('Face') || action.includes('face') || action.includes('Chủ nhà')) {
+      return {
+        icon: ScanFace,
+        bg: 'bg-blue-50 text-blue-600',
+        title: action.replace(/^AI:\s*/, ''),
+        subtitle: 'Nhận diện thành viên',
+      };
+    }
+    if (action.includes('người lạ') || action.includes('STRANGER') || action.includes('UNKNOWN') || action.includes('Giả mạo')) {
+      return {
+        icon: ShieldAlert,
+        bg: 'bg-rose-50 text-rose-600',
+        title: 'Cảnh báo người lạ',
+        subtitle: 'Camera phát hiện trước cửa',
+      };
+    }
     if (action.includes('RFID')) {
       return {
         icon: Fingerprint,
@@ -60,9 +77,9 @@ export default function HistoryPanel({
     if (action.includes('App') || action.includes('Dashboard') || action.includes('Web') || action.includes('REMOTE')) {
       return {
         icon: Smartphone,
-        bg: 'bg-blue-50 text-blue-600',
-        title: 'Mở qua Web Dashboard',
-        subtitle: 'Lệnh điều khiển từ xa',
+        bg: 'bg-indigo-50 text-indigo-600',
+        title: 'Mở qua ứng dụng Web',
+        subtitle: 'Điều khiển từ xa',
       };
     }
     if (action.includes('PIR') || action.includes('Auto') || action.includes('Tự động')) {
@@ -70,30 +87,30 @@ export default function HistoryPanel({
         icon: KeyRound,
         bg: 'bg-indigo-50 text-indigo-600',
         title: 'Mở cửa tự động',
-        subtitle: 'Hoạt động của khóa cửa',
+        subtitle: 'Cảm biến chuyển động',
       };
     }
     if (action.includes('LOCKDOWN_ENABLED') || action.includes('Phong tỏa')) {
       return {
         icon: ShieldAlert,
         bg: 'bg-rose-50 text-rose-600',
-        title: 'Bật phong tỏa khẩn cấp',
-        subtitle: 'Đã khóa bàn phím & thẻ',
+        title: 'Bật khóa an toàn',
+        subtitle: 'Tạm ngắt mở cửa',
       };
     }
     if (action.includes('LOCKDOWN_DISABLED') || action.includes('Khôi phục')) {
       return {
         icon: ShieldCheck,
         bg: 'bg-amber-50 text-amber-600',
-        title: 'Hủy phong tỏa',
-        subtitle: 'Hệ thống an toàn',
+        title: 'Mở khóa an toàn',
+        subtitle: 'Hệ thống hoạt động bình thường',
       };
     }
     return {
       icon: KeyRound,
       bg: 'bg-slate-100 text-slate-600',
-      title: action || 'Sự kiện cửa',
-      subtitle: log.rfid_uid || 'Cảm biến kích hoạt',
+      title: action || 'Hoạt động cửa',
+      subtitle: log.rfid_uid || 'Cảm biến ghi nhận',
     };
   };
 
@@ -116,7 +133,7 @@ export default function HistoryPanel({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm sm:text-base font-bold text-slate-800">Nhật Ký Hoạt Động</h3>
-            <p className="text-[11px] text-slate-400">Các lần truy cập gần nhất từ MySQL</p>
+            <p className="text-[11px] text-slate-400">Các lượt mở cửa gần nhất</p>
           </div>
           
           {/* Refresh Button with Spinner only while loading */}
@@ -126,7 +143,7 @@ export default function HistoryPanel({
             onClick={onRefreshLogs}
             disabled={loadingLogs}
             className="w-7 h-7 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors cursor-pointer disabled:opacity-60 shadow-xs"
-            title="Làm mới nhật ký (GET /api/logs)"
+            title="Làm mới nhật ký"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${loadingLogs ? 'animate-spin text-blue-600' : ''}`} />
           </motion.button>
@@ -153,7 +170,7 @@ export default function HistoryPanel({
                 <div className="space-y-0.5">
                   <h4 className="text-xs font-bold text-slate-700">Chưa Có Dữ Liệu</h4>
                   <p className="text-[11px] text-slate-400 max-w-[220px] leading-relaxed">
-                    Hãy quẹt thẻ để hệ thống ghi nhận.
+                    Các lượt mở cửa bằng khuôn mặt, thẻ từ hoặc từ xa sẽ xuất hiện tại đây.
                   </p>
                 </div>
                 <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-[9px] font-bold">

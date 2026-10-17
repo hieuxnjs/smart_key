@@ -7,6 +7,7 @@ import {
   Key,
   Settings,
   LogOut,
+  ScanFace,
 } from 'lucide-react';
 
 export default function Sidebar({
@@ -17,11 +18,12 @@ export default function Sidebar({
   currentUser = null,
 }) {
   const navItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Bảng Điều Khiển', shortLabel: 'Tổng quan' },
-    { id: 'security', icon: Shield, label: 'Quản Lý Khóa Cửa', shortLabel: 'Khóa cửa' },
-    { id: 'history', icon: Clock, label: 'Nhật Ký Truy Cập', shortLabel: 'Nhật ký' },
-    { id: 'rfid', icon: Key, label: 'Quản Lý Thẻ Từ', shortLabel: 'Thẻ từ' },
-    { id: 'settings', icon: Settings, label: 'Cấu Hình Hệ Thống', shortLabel: 'Cài đặt' },
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Hệ Thống Khóa Thông Minh', shortLabel: 'Tổng quan' },
+    { id: 'faces', icon: ScanFace, label: 'Quản Lý Nhận Diện Khuôn Mặt', shortLabel: 'Khuôn mặt' },
+    { id: 'security', icon: Shield, label: 'An Ninh & Khóa Cửa', shortLabel: 'An ninh' },
+    { id: 'history', icon: Clock, label: 'Nhật Ký Ra Vào', shortLabel: 'Nhật ký' },
+    { id: 'rfid', icon: Key, label: 'Thẻ Từ Gia Đình', shortLabel: 'Thẻ từ' },
+    { id: 'settings', icon: Settings, label: 'Cài Đặt Hệ Thống', shortLabel: 'Cài đặt' },
   ];
 
   const handleSelect = (id) => {
@@ -68,27 +70,33 @@ export default function Sidebar({
             const isActive = activeTab === item.id;
 
             return (
-              <motion.button
-                key={item.id}
-                onClick={() => handleSelect(item.id)}
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.92 }}
-                title={item.label}
-                className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200 cursor-pointer ${
-                  isActive
-                    ? 'bg-white text-blue-600 shadow-xl shadow-black/15 scale-105'
-                    : 'text-white/80 hover:text-white hover:bg-white/15'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                {isActive && (
-                  <motion.span
-                    layoutId="desktopActiveIndicator"
-                    className="absolute -right-3 w-1.5 h-6 bg-white rounded-l-full shadow-sm"
-                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-                  />
-                )}
-              </motion.button>
+              <div key={item.id} className="relative group flex items-center">
+                <motion.button
+                  onClick={() => handleSelect(item.id)}
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  className={`relative w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200 cursor-pointer ${
+                    isActive
+                      ? 'bg-white text-blue-600 shadow-xl shadow-black/20 scale-105'
+                      : 'text-white/80 hover:text-white hover:bg-white/15'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  {isActive && (
+                    <motion.span
+                      layoutId="desktopActiveIndicator"
+                      className="absolute -right-3 w-1.5 h-6 bg-white rounded-l-full shadow-sm"
+                      transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                    />
+                  )}
+                </motion.button>
+
+                {/* Floating Tooltip */}
+                <div className="absolute left-full ml-3 px-3 py-1.5 bg-slate-900/95 backdrop-blur-md text-white text-xs font-bold rounded-xl whitespace-nowrap shadow-xl border border-slate-700/50 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 -translate-x-2 group-hover:translate-x-0 z-50">
+                  {item.label}
+                  <div className="absolute right-full top-1/2 -translate-y-1/2 -mr-1 border-4 border-transparent border-r-slate-900/95" />
+                </div>
+              </div>
             );
           })}
         </nav>

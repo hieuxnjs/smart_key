@@ -19,8 +19,18 @@ const AccessLog = sequelize.define(
       defaultValue: null,
     },
     action: {
-      type: DataTypes.STRING(64),
+      type: DataTypes.STRING(255),
       allowNull: false,
+    },
+    image_data: {
+      type: DataTypes.TEXT("long"),
+      allowNull: true,
+      defaultValue: null,
+    },
+    image_base64: {
+      type: DataTypes.TEXT("long"),
+      allowNull: true,
+      defaultValue: null,
     },
     timestamp: {
       type: DataTypes.DATE,
@@ -75,6 +85,43 @@ const Setting = sequelize.define(
   },
 );
 
+// Model: EnrolledFace (Khuôn mặt thành viên được đồng bộ từ AI Service)
+const EnrolledFace = sequelize.define(
+  "EnrolledFace",
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    name: {
+      type: DataTypes.STRING(128),
+      allowNull: false,
+      unique: true,
+    },
+    image_base64: {
+      type: DataTypes.TEXT("long"),
+      allowNull: true,
+      defaultValue: null,
+    },
+    created_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+  },
+  {
+    tableName: "enrolled_faces",
+    timestamps: false,
+    indexes: [
+      {
+        unique: true,
+        fields: ["name"],
+      },
+    ],
+  },
+);
+
 // Helper function to initialize default setting row
 async function initSetting() {
   const [setting] = await Setting.findOrCreate({
@@ -96,5 +143,6 @@ module.exports = {
   User, // Quan trọng: Đã có mặt User ở đây
   AccessLog,
   Setting,
+  EnrolledFace,
   initSetting,
 };

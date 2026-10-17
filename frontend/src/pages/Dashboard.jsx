@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -21,7 +21,11 @@ import {
   EyeOff,
   ArrowRight,
   Activity,
+  Camera,
+  AlertTriangle,
+  Lock,
 } from 'lucide-react';
+import { io } from 'socket.io-client';
 
 import MainLayout from '../layouts/MainLayout';
 import CenterControl from '../components/CenterControl';
@@ -29,7 +33,10 @@ import SecurityTab from '../components/tabs/SecurityTab';
 import HistoryTab from '../components/tabs/HistoryTab';
 import RfidTab from '../components/tabs/RfidTab';
 import SettingsTab from '../components/tabs/SettingsTab';
+import FaceTab from '../components/tabs/FaceTab';
+import ErrorBoundary from '../components/ErrorBoundary';
 import PasswordResetModal from '../components/PasswordResetModal';
+import StrangerAlertModal from '../components/StrangerAlertModal';
 
 const API_BASE = '/api';
 
@@ -41,10 +48,12 @@ const getAuthHeaders = () => {
 export default function Dashboard() {
   const navigate = useNavigate();
 
-  // Navigation tab state ('dashboard' | 'security' | 'history' | 'rfid' | 'settings')
+  // Navigation tab state ('dashboard' | 'faces' | 'security' | 'history' | 'rfid' | 'settings')
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false);
+  const [socketInstance, setSocketInstance] = useState(null);
+  const doorTimerRef = useRef(null);
 
   // Hardware telemetry states
   const [doorOpen, setDoorOpen] = useState(false);
@@ -55,6 +64,11 @@ export default function Dashboard() {
   const [deviceOnline, setDeviceOnline] = useState(false);
   const [autoCloseDelay, setAutoCloseDelay] = useState(10);
   const [logs, setLogs] = useState([]);
+
+  // AI Camera stranger alert states
+  const [currentStrangerAlert, setCurrentStrangerAlert] = useState(null);
+  const [isStrangerModalOpen, setIsStrangerModalOpen] = useState(false);
+  const [doorLeftOpenWarning, setDoorLeftOpenWarning] = useState(false);
   
   // Loading & Action states
   const [actionLoading, setActionLoading] = useState(false);
@@ -101,6 +115,9 @@ export default function Dashboard() {
         setMqttConnected(Boolean(res.data.mqttConnected));
         setDeviceOnline(Boolean(res.data.deviceOnline ?? res.data.online));
         if (typeof res.data.autoCloseDelay === 'number') setAutoCloseDelay(res.data.autoCloseDelay);
+        if (res.data.latestStrangerAlert && res.data.latestStrangerAlert.image_base64) {
+          setCurrentStrangerAlert(res.data.latestStrangerAlert);
+        }
       }
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) handleLogout();
@@ -136,6 +153,119 @@ export default function Dashboard() {
       setRefreshing(false);
     }
   };
+
+  // Realtime WebSocket kết nối qua Socket.io
+  useEffect(() => {
+    const socket = io('/', {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+    });
+    setSocketInstance(socket);
+
+    socket.on('connect', () => {
+      console.log('[Socket.io] Đã kết nối với máy chủ SmartLock');
+    });
+
+    socket.on('doorbell_ring', (data) => {
+      console.log('[Socket.io] Doorbell rung:', data);
+      toast('🔔 Có người vừa bấm chuông cửa! AI đang quét khuôn mặt...', {
+        icon: '📸',
+        duration: 5000,
+      });
+    });
+
+    socket.on('camera_alert', (data) => {
+      console.log('[Socket.io] Nhận cảnh báo người lạ từ Camera AI:', data);
+      if (data && (data.image_data || data.image_base64)) {
+        // Đồng bộ 2 thuộc tính để luôn tương thích
+        const normalized = {
+          ...data,
+          image_data: data.image_data || data.image_base64,
+          image_base64: data.image_base64 || data.image_data,
+        };
+        setCurrentStrangerAlert(normalized);
+        setIsStrangerModalOpen(true);
+        toast.error('CẢNH BÁO: Phát hiện người lạ trước cửa!', {
+          icon: '📸',
+          duration: 6000,
+        });
+        fetchLogs();
+      }
+    });
+
+    socket.on('new_log', (newLog) => {
+      if (newLog) {
+        setLogs((prev) => {
+          const list = Array.isArray(prev) ? prev : [];
+          const exists = list.some((l) => l.id === newLog.id);
+          if (exists) {
+            return list.map((l) => (l.id === newLog.id ? newLog : l));
+          }
+          return [newLog, ...list];
+        });
+      }
+    });
+
+    socket.on('status_change', (status) => {
+      if (status) {
+        if (typeof status.doorOpen !== 'undefined') {
+          const isOpen = Boolean(status.doorOpen);
+          setDoorOpen(isOpen);
+          if (!isOpen && doorTimerRef.current) {
+            clearTimeout(doorTimerRef.current);
+            doorTimerRef.current = null;
+          }
+        }
+        if (typeof status.doorState !== 'undefined') setDoorState(Number(status.doorState));
+        if (typeof status.buzzerActive !== 'undefined') setBuzzerActive(Boolean(status.buzzerActive));
+        if (typeof status.systemLocked !== 'undefined') setSystemLocked(Boolean(status.systemLocked));
+        if (typeof status.deviceOnline !== 'undefined') setDeviceOnline(Boolean(status.deviceOnline));
+      }
+    });
+
+    socket.on('door_left_open', (data) => {
+      setDoorLeftOpenWarning(true);
+      toast.error(data?.message || '⚠️ CẢNH BÁO: Cửa chính đã mở hơn 1 phút chưa đóng! Vui lòng kiểm tra.', {
+        id: 'door-left-open',
+        duration: 15000,
+        icon: '🚨',
+      });
+    });
+
+    socket.on('door_closed_resolved', () => {
+      setDoorLeftOpenWarning(false);
+      toast.dismiss('door-left-open');
+    });
+
+    return () => {
+      if (doorTimerRef.current) {
+        clearTimeout(doorTimerRef.current);
+      }
+      socket.disconnect();
+    };
+  }, [fetchLogs]);
+
+  // Bộ đếm cảnh báo nếu cửa mở quá 60s (1 phút) chưa đóng
+  useEffect(() => {
+    let timer = null;
+    if (doorOpen) {
+      timer = setTimeout(() => {
+        setDoorLeftOpenWarning(true);
+        toast.error('⚠️ CẢNH BÁO: Cửa chính đã mở hơn 1 phút chưa được đóng! Vui lòng kiểm tra và đóng cửa.', {
+          id: 'door-left-open',
+          duration: 15000,
+          icon: '🚨',
+        });
+      }, 60000);
+    } else {
+      setDoorLeftOpenWarning(false);
+      toast.dismiss('door-left-open');
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [doorOpen]);
 
   useEffect(() => {
     fetchStatus();
@@ -193,21 +323,65 @@ export default function Dashboard() {
       return;
     }
 
+    if (doorTimerRef.current) {
+      clearTimeout(doorTimerRef.current);
+      doorTimerRef.current = null;
+    }
+
     setActionLoading(true);
     try {
       const res = await axios.post(`${API_BASE}/control/open`, {}, { headers: getAuthHeaders() });
       if (res.data.success) {
         setDoorOpen(true);
+        setDoorState(1);
         toast.success(res.data.message || 'Đã gửi lệnh mở cửa từ xa thành công!', { icon: '🔓' });
         if (res.data.log) {
           setLogs((prev) => [res.data.log, ...(Array.isArray(prev) ? prev : [])]);
         }
-        setTimeout(() => setDoorOpen(false), (autoCloseDelay || 5) * 1000);
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Không thể mở cửa. Kiểm tra kết nối server.');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // Remote Door Close
+  const handleCloseDoor = async () => {
+    if (!deviceOnline) {
+      toast.error('Hệ thống đang ở chế độ offline không thể thao tác', { icon: '⚠️' });
+      return;
+    }
+
+    if (doorTimerRef.current) {
+      clearTimeout(doorTimerRef.current);
+      doorTimerRef.current = null;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await axios.post(`${API_BASE}/control/close`, {}, { headers: getAuthHeaders() });
+      if (res.data.success) {
+        setDoorOpen(false);
+        setDoorState(0);
+        toast.success(res.data.message || 'Đã gửi lệnh đóng cửa thành công!', { icon: '🔒' });
+        if (res.data.log) {
+          setLogs((prev) => [res.data.log, ...(Array.isArray(prev) ? prev : [])]);
+        }
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Không thể đóng cửa. Kiểm tra kết nối server.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Toggle Door (Mở nếu đang đóng, Đóng nếu đang mở)
+  const handleToggleDoor = async () => {
+    if (doorOpen) {
+      await handleCloseDoor();
+    } else {
+      await handleOpenDoor();
     }
   };
 
@@ -252,6 +426,18 @@ export default function Dashboard() {
         setSystemLocked(Boolean(res.data.systemLocked));
         if (command === 'BUZZER_ON' || command === 'BUZZER_OFF') {
           setBuzzerActive(Boolean(res.data.buzzerActive));
+        }
+        if (command === 'CLOSE_DOOR') {
+          if (doorTimerRef.current) {
+            clearTimeout(doorTimerRef.current);
+            doorTimerRef.current = null;
+          }
+          setDoorOpen(false);
+          setDoorState(0);
+        }
+        if (command === 'OPEN_DOOR') {
+          setDoorOpen(true);
+          setDoorState(1);
         }
         toast.success(res.data.message || 'Đã gửi lệnh tới khóa cửa.');
         if (res.data.log) setLogs((prev) => [res.data.log, ...(Array.isArray(prev) ? prev : [])]);
@@ -338,6 +524,23 @@ export default function Dashboard() {
   // Helper log badge metadata
   const getLogMeta = (log) => {
     const action = log.action || '';
+    if (action.includes('nguoi la') || action.includes('CANH BAO') || log.image_base64) {
+      return {
+        icon: Camera,
+        bg: 'bg-rose-100 text-rose-600',
+        title: 'Phát hiện người lạ (AI Camera)',
+        subtitle: log.image_base64 ? 'Đã chụp ảnh người lạ' : 'Cảnh báo an ninh',
+        hasImage: Boolean(log.image_base64),
+      };
+    }
+    if (action.includes('Chu_Nha') || (action.includes('AI') && action.includes('Camera'))) {
+      return {
+        icon: Camera,
+        bg: 'bg-purple-100 text-purple-600',
+        title: 'Mở cửa bằng AI Camera',
+        subtitle: 'Nhận diện chủ nhà thành công',
+      };
+    }
     if (action.includes('RFID')) {
       return {
         icon: Fingerprint,
@@ -409,42 +612,40 @@ export default function Dashboard() {
       systemLocked={systemLocked}
       onToggleSystemLock={handleToggleSystemLock}
     >
-      <AnimatePresence mode="wait">
-        
+      <ErrorBoundary resetKey={activeTab} onGoHome={() => setActiveTab('dashboard')}>
         {/* ========================================================
             TAB 1: BẢNG ĐIỀU KHIỂN CHÍNH (BỐ CỤC ĐẦY ĐẶN, KHÔNG BỊ TRỐNG)
            ======================================================== */}
         {activeTab === 'dashboard' && (
           <motion.div
             key="dashboard"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.3 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
             className="flex-1 flex flex-col space-y-4"
           >
-            {/* 1. Header Toolbar & Quick Refresh */}
+            {/* 1. Header Toolbar & Quick Refresh (Tối ưu co giãn cho điện thoại & phóng to zoom) */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-              <div>
-                <span className="text-xs font-bold text-blue-600 tracking-wider uppercase">
-                  HỆ THỐNG KHÓA THÔNG MINH
+              <div className="min-w-0">
+                <span className="text-xs font-bold text-blue-600 tracking-wider uppercase block">
+                  BẢNG ĐIỀU KHIỂN TRUNG TÂM
                 </span>
-                <h1 className="text-2xl lg:text-3xl font-extrabold text-slate-800 tracking-tight">
-                  Bảng Điều Khiển Khóa Cửa
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">
+                  Hệ Thống Khóa Thông Minh
                 </h1>
-                <p className="text-xs text-slate-400 font-medium mt-0.5">
-                  Theo dõi trạng thái cửa, quản lý quyền truy cập và xem nhật ký hoạt động
+                <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 leading-relaxed">
+                  Giám sát toàn diện trạng thái khóa cửa, thành viên gia đình và an toàn ngôi nhà
                 </p>
               </div>
 
               {/* Action Buttons Header */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
                 <div className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${
                   deviceOnline
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                    : 'bg-slate-100 text-slate-600 border-slate-200'
                 }`}>
-                  <span className={`w-2 h-2 rounded-full ${deviceOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                  <span className={`w-2 h-2 rounded-full ${deviceOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
                   <span>{deviceOnline ? 'Khóa Trực Tuyến' : 'Khóa Ngoại Tuyến'}</span>
                 </div>
 
@@ -453,7 +654,7 @@ export default function Dashboard() {
                   whileTap={{ scale: 0.95 }}
                   onClick={handleManualRefresh}
                   disabled={refreshing || loadingLogs}
-                  className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-700 text-xs font-bold shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                  className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200/80 text-slate-700 text-xs font-bold shadow-2xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60"
                   title="Cập nhật lại trạng thái phần cứng và nhật ký"
                 >
                   <RotateCcw className={`w-3.5 h-3.5 text-blue-600 ${refreshing || loadingLogs ? 'animate-spin' : ''}`} />
@@ -462,11 +663,11 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* 2. DÃY 4 THẺ CHỈ SỐ TỔNG QUAN (KPI METRICS STRIP - GIẢM TRỐNG TOÀN DIỆN) */}
+            {/* 2. DÃY 3 THẺ CHỈ SỐ TỔNG QUAN (KPI METRICS STRIP) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               
               {/* Metric 1: Cửa Từ */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 shadow-xs flex items-center justify-between">
+              <div className="p-3.5 rounded-2xl bg-white border border-slate-100 shadow-xs flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
@@ -474,17 +675,17 @@ export default function Dashboard() {
                         ? 'bg-rose-100 text-rose-600'
                         : doorState === 1
                         ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30'
-                        : 'bg-slate-200 text-slate-600'
+                        : 'bg-slate-100 text-slate-600'
                     }`}
                   >
                     {doorState === 1 ? <DoorOpen className="w-5 h-5" /> : <DoorClosed className="w-5 h-5" />}
                   </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                      Khóa Cửa
+                      Trạng Thái Cửa
                     </span>
-                    <h4 className="text-sm font-extrabold text-slate-800">
-                      {doorState === 1 ? 'Đang Mở' : doorState === 2 ? 'Kẹt Cửa' : 'Đang Đóng'}
+                    <h4 className="text-sm font-extrabold text-slate-900">
+                      {doorState === 1 ? 'Đang Mở' : doorState === 2 ? 'Kẹt Cửa' : 'Đang Đóng Khép'}
                     </h4>
                   </div>
                 </div>
@@ -496,7 +697,7 @@ export default function Dashboard() {
               </div>
 
               {/* Metric 2: Quyền Truy Cập */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 shadow-xs flex items-center justify-between">
+              <div className="p-3.5 rounded-2xl bg-white border border-slate-100 shadow-xs flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-10 h-10 rounded-xl flex items-center justify-center ${
@@ -507,39 +708,39 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                      Quyền Truy Cập
+                      Bảo Vệ Tại Chỗ
                     </span>
-                    <h4 className="text-sm font-extrabold text-slate-800">
-                      {systemLocked ? 'Bị Khóa' : 'Đang Mở'}
+                    <h4 className="text-sm font-extrabold text-slate-900">
+                      {systemLocked ? 'Đang Phong Tỏa' : 'Bình Thường'}
                     </h4>
                   </div>
                 </div>
                 <span
                   className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
-                    systemLocked ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
+                    systemLocked ? 'bg-rose-100 text-rose-700' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                   }`}
                 >
-                  {systemLocked ? 'Khóa' : 'Sẵn Sàng'}
+                  {systemLocked ? 'Đã Khóa' : 'Sẵn Sàng'}
                 </span>
               </div>
 
-              {/* Metric 4: Tổng Lượt Mở Tuần */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 shadow-xs flex items-center justify-between">
+              {/* Metric 3: Tổng Lượt Mở Tuần */}
+              <div className="p-3.5 rounded-2xl bg-white border border-slate-100 shadow-xs flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
                     <TrendingUp className="w-5 h-5" />
                   </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                      Lượt Mở Trong Tuần
+                      Lượt Ra Vào Tuần Này
                     </span>
-                    <h4 className="text-sm font-extrabold text-slate-800">
+                    <h4 className="text-sm font-extrabold text-slate-900">
                       {totalUnlocksCount} Lượt Mở
                     </h4>
                   </div>
                 </div>
                 <span className="text-[10px] font-bold text-slate-400 font-mono">
-                  Đã lưu
+                  Ghi nhận
                 </span>
               </div>
 
@@ -557,10 +758,38 @@ export default function Dashboard() {
                     ? 'emergency-alert-pulse bg-gradient-to-r from-rose-50/80 via-white to-rose-50/80'
                     : 'bg-slate-50/80 border border-slate-100 shadow-xs'
                 }`}>
+                  {/* Cảnh báo cửa mở quá 1 phút chưa đóng */}
+                  <AnimatePresence>
+                    {doorLeftOpenWarning && doorOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.96 }}
+                        className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-rose-600 via-red-600 to-amber-600 text-white shadow-lg shadow-rose-500/25 flex items-center justify-between gap-3 text-xs font-bold"
+                      >
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 flex-shrink-0 animate-bounce text-amber-200" />
+                          <span>Cửa chính đã mở hơn 1 phút chưa đóng! Vui lòng kiểm tra.</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleCloseDoor}
+                          disabled={actionLoading}
+                          className="px-3.5 py-1.5 rounded-xl bg-white text-rose-600 hover:bg-rose-50 font-black text-xs transition-all shadow-xs cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                          <span>Đóng Cửa Ngay</span>
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   <CenterControl
                     doorOpen={doorOpen}
+                    doorState={doorState}
                     systemLocked={systemLocked}
+                    onToggleDoor={handleToggleDoor}
                     onOpenDoor={handleOpenDoor}
+                    onCloseDoor={handleCloseDoor}
                     actionLoading={actionLoading}
                     mqttConnected={mqttConnected}
                     deviceOnline={deviceOnline}
@@ -640,12 +869,66 @@ export default function Dashboard() {
               {/* KHỐI PHẢI (5 CỘT): NHẬT KÝ THỜI GIAN THỰC & CÀI ĐẶT NHANH */}
               <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
                 
+                {/* 3.2.5 KHU VỰC CẢNH BÁO CAMERA AI (KHI CÓ NGƯỜI LẠ) */}
+                {currentStrangerAlert && (currentStrangerAlert.image_data || currentStrangerAlert.image_base64) && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="p-3.5 sm:p-4 rounded-3xl bg-gradient-to-r from-rose-50 via-amber-50/50 to-rose-50 border-2 border-rose-300 shadow-md flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative flex-shrink-0">
+                        {(() => {
+                          const rawImg = currentStrangerAlert.image_data || currentStrangerAlert.image_base64;
+                          const cleanB64 = rawImg.replace(/^data:image\/[a-z]+;base64,/, '');
+                          return (
+                            <img
+                              src={`data:image/jpeg;base64,${cleanB64}`}
+                              alt="Ảnh người lạ"
+                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover bg-black border-2 border-rose-400 shadow-sm cursor-pointer hover:scale-105 transition-transform"
+                              onClick={() => setIsStrangerModalOpen(true)}
+                              title="Bấm để xem ảnh chi tiết"
+                            />
+                          );
+                        })()}
+                        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-rose-600 border-2 border-white animate-ping" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-extrabold uppercase tracking-wider border border-rose-200">
+                          <Camera className="w-3 h-3 text-rose-600" />
+                          <span>AI Camera Cảnh Báo</span>
+                        </div>
+                        <h4 className="text-xs sm:text-sm font-extrabold text-rose-900 truncate mt-0.5">
+                          {currentStrangerAlert.action || 'Phát hiện người lạ trước cửa!'}
+                        </h4>
+                        <p className="text-[10px] sm:text-[11px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          <span>{formatLogTime(currentStrangerAlert.timestamp)}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 flex-shrink-0">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setIsStrangerModalOpen(true)}
+                        className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-sm shadow-rose-600/30 transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Xem Ảnh</span>
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+
                 {/* 3.3 Bảng Nhật Ký Hoạt Động (Live Activity Feed) */}
                 <div className="p-4 rounded-3xl bg-slate-50/80 border border-slate-100 shadow-xs space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-sm font-bold text-slate-800">Nhật Ký Hoạt Động Gần Nhất</h3>
-                      <p className="text-[11px] text-slate-400">Nhật ký truy cập gần đây</p>
+                      <h3 className="text-sm font-black text-slate-800">Nhật Ký Ra Vào Mới Nhất</h3>
+                      <p className="text-[11px] text-slate-400">Cập nhật trực tiếp các lượt mở cửa và cảnh báo an ninh</p>
                     </div>
 
                     <button
@@ -686,9 +969,25 @@ export default function Dashboard() {
                                   <Icon className="w-4 h-4" />
                                 </div>
                                 <div>
-                                  <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
-                                    {meta.title}
-                                  </h4>
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+                                      {meta.title}
+                                    </h4>
+                                    {log.image_base64 && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setCurrentStrangerAlert(log);
+                                          setIsStrangerModalOpen(true);
+                                        }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 border border-rose-200 text-[10px] font-bold text-rose-700 cursor-pointer transition-colors"
+                                      >
+                                        <Camera className="w-2.5 h-2.5" />
+                                        <span>[Ảnh]</span>
+                                      </button>
+                                    )}
+                                  </div>
                                   <p className="text-[10px] text-slate-400">{meta.subtitle}</p>
                                 </div>
                               </div>
@@ -708,7 +1007,7 @@ export default function Dashboard() {
                 <div className="p-4 rounded-3xl bg-slate-50/80 border border-slate-100 shadow-xs space-y-3.5">
                   <form onSubmit={(e) => { e.preventDefault(); handleUpdatePassword(currentPin, newPin); }} className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-800">Đổi Mật Khẩu Mở Cửa</h4>
+                      <h4 className="text-xs font-bold text-slate-800">Mật Khẩu Bàn Phím Khóa Cửa</h4>
                     </div>
                     <input
                       type={showPin ? 'text' : 'password'}
@@ -767,9 +1066,28 @@ export default function Dashboard() {
           </motion.div>
         )}
 
+        {/* TAB 1.5: QUẢN LÝ KHUÔN MẶT AI */}
+        {activeTab === 'faces' && (
+          <motion.div
+            key="faces"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="flex-1 flex flex-col min-h-0"
+          >
+            <FaceTab socket={socketInstance} deviceOnline={deviceOnline} logs={logs} currentUser={currentUser} />
+          </motion.div>
+        )}
+
         {/* TAB 2: TRUNG TÂM CHỈ HUY */}
         {activeTab === 'security' && (
-          <motion.div key="security" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="flex-1 flex flex-col">
+          <motion.div
+            key="security"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="flex-1 flex flex-col min-h-0"
+          >
             <SecurityTab
               systemLocked={systemLocked}
               doorOpen={doorOpen}
@@ -786,21 +1104,47 @@ export default function Dashboard() {
 
         {/* TAB 3: NHẬT KÝ TRUY CẬP */}
         {activeTab === 'history' && (
-          <motion.div key="history" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="flex-1 flex flex-col">
-            <HistoryTab logs={logs} onRefreshLogs={fetchLogs} loadingLogs={loadingLogs} />
+          <motion.div
+            key="history"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="flex-1 flex flex-col min-h-0"
+          >
+            <HistoryTab
+              logs={logs}
+              onRefreshLogs={fetchLogs}
+              loadingLogs={loadingLogs}
+              onViewAlert={(alertData) => {
+                setCurrentStrangerAlert(alertData);
+                setIsStrangerModalOpen(true);
+              }}
+            />
           </motion.div>
         )}
 
         {/* TAB 4: QUẢN LÝ THẺ RFID */}
         {activeTab === 'rfid' && (
-          <motion.div key="rfid" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="flex-1 flex flex-col">
-            <RfidTab onOpenDoor={handleOpenDoor} deviceOnline={deviceOnline} />
+          <motion.div
+            key="rfid"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="flex-1 flex flex-col min-h-0"
+          >
+            <RfidTab onOpenDoor={handleOpenDoor} deviceOnline={deviceOnline} currentUser={currentUser} />
           </motion.div>
         )}
 
         {/* TAB 5: CẤU HÌNH HỆ THỐNG */}
         {activeTab === 'settings' && (
-          <motion.div key="settings" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="flex-1 flex flex-col">
+          <motion.div
+            key="settings"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="flex-1 flex flex-col min-h-0"
+          >
             <SettingsTab
               onUpdatePassword={handleUpdatePassword}
               onForgotPassword={() => {
@@ -818,13 +1162,22 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-      </AnimatePresence>
+      </ErrorBoundary>
     </MainLayout>
     <PasswordResetModal
       key={isPasswordResetOpen ? 'open' : 'closed'}
       isOpen={isPasswordResetOpen}
       onClose={() => setIsPasswordResetOpen(false)}
       onReset={handleResetLockPassword}
+    />
+    <StrangerAlertModal
+      key={isStrangerModalOpen ? 'stranger-open' : 'stranger-closed'}
+      isOpen={isStrangerModalOpen}
+      onClose={() => setIsStrangerModalOpen(false)}
+      alert={currentStrangerAlert}
+      onLockSystem={handleToggleSystemLock}
+      systemLocked={systemLocked}
+      onTriggerBuzzer={() => handleDeviceCommand('BUZZER_ON')}
     />
     </>
   );

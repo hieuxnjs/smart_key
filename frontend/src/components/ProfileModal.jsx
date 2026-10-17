@@ -32,7 +32,7 @@ export default function ProfileModal({ isOpen, onClose, currentUser, onLogout })
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-white p-6 z-10 space-y-5"
+          className="relative w-[94%] sm:w-full max-w-sm max-h-[90vh] overflow-y-auto bg-white rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 z-10 space-y-5 scrollbar-thin"
         >
           {/* Header */}
           <div className="flex items-center justify-between">

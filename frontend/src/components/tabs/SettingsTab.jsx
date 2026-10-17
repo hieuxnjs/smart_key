@@ -57,13 +57,13 @@ export default function SettingsTab({
       {/* Header */}
       <div>
         <span className="text-xs font-bold text-blue-600 tracking-wider uppercase">
-          Tùy Chỉnh Khóa Cửa
+          CẤU HÌNH THIẾT BỊ
         </span>
-        <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-800 tracking-tight">
-          Cài Đặt Khóa Cửa
+        <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-800 tracking-tight">
+          Thiết Lập Khóa Cửa & Hệ Thống
         </h2>
-        <p className="text-xs text-slate-400 mt-0.5">
-          Quản lý mật khẩu mở cửa và trạng thái kết nối
+        <p className="text-xs sm:text-sm text-slate-500 mt-0.5 font-medium leading-relaxed">
+          Tùy chỉnh mã số bảo mật, trạng thái kết nối mạng và quản lý hệ thống khóa cửa
         </p>
       </div>
 

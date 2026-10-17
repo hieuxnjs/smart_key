@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build: ./backend
@@ -8,6 +6,13 @@ services:
       - "5000:5000"
     env_file:
       - ./backend/.env
+    environment:
+      - AI_SERVICE_URL=https://spearhead-lens-cardstock.ngrok-free.dev
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
     restart: unless-stopped
 
   frontend:
@@ -15,6 +20,9 @@ services:
     container_name: smartlock_frontend
     ports:
       - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
       - backend
     restart: unless-stopped

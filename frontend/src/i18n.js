@@ -54,6 +54,7 @@ const resources = {
       
       // Navigation
       navDashboard: 'Dashboard',
+      navFaces: 'AI Faces',
       navSecurity: 'Security',
       navHistory: 'Access History',
       navRfid: 'Key Cards',
@@ -202,6 +203,7 @@ const resources = {
       
       // Navigation
       navDashboard: 'Bảng Điều Khiển',
+      navFaces: 'Khuôn Mặt AI',
       navSecurity: 'Bảo Mật',
       navHistory: 'Lịch Sử Ra Vào',
       navRfid: 'Thẻ Từ & Chìa Khóa',
